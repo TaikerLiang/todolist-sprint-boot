@@ -1,6 +1,6 @@
 databaseChangeLog:
 - changeSet:
-    id: 1762059564839-1
+    id: 1762089572673-1
     author: taiker (generated)
     changes:
     - createTable:
@@ -33,3 +33,4 @@ databaseChangeLog:
             name: title
             type: VARCHAR(255)
         tableName: todos
+
