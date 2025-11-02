@@ -1,0 +1,35 @@
+databaseChangeLog:
+- changeSet:
+    id: 1762059564839-1
+    author: taiker (generated)
+    changes:
+    - createTable:
+        columns:
+        - column:
+            autoIncrement: true
+            constraints:
+              nullable: false
+              primaryKey: true
+              primaryKeyName: todosPK
+            name: id
+            type: BIGINT
+        - column:
+            constraints:
+              nullable: false
+            name: completed
+            type: BOOLEAN
+        - column:
+            constraints:
+              nullable: false
+            defaultValueComputed: CURRENT_TIMESTAMP
+            name: createdAt
+            type: TIMESTAMP WITH TIME ZONE
+        - column:
+            name: description
+            type: VARCHAR(255)
+        - column:
+            constraints:
+              nullable: false
+            name: title
+            type: VARCHAR(255)
+        tableName: todos
