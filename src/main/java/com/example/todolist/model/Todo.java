@@ -1,11 +1,17 @@
 package com.example.todolist.model;
 
 import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 import java.time.Instant;
 
 @Entity
 @Table(name = "todolist")
+@Getter
+@Setter
+@NoArgsConstructor
 public class Todo {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -22,10 +28,9 @@ public class Todo {
     // UTC-safe creation timestamp
     @Column(nullable = false, updatable = false,
             columnDefinition = "TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP")
-    private Instant createdAt = Instant.now();    
+    private Instant createdAt = Instant.now();
 
-    // Constructors
-    public Todo() {}
+    // Custom constructor for creating new todos
     public Todo(String title, String description) {
         this.title = title;
         this.description = description;

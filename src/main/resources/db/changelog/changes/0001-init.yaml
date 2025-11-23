@@ -1,6 +1,6 @@
 databaseChangeLog:
 - changeSet:
-    id: 1762089572673-1
+    id: 1763910259559-1
     author: taiker (generated)
     changes:
     - createTable:
@@ -10,7 +10,7 @@ databaseChangeLog:
             constraints:
               nullable: false
               primaryKey: true
-              primaryKeyName: todosPK
+              primaryKeyName: todolistPK
             name: id
             type: BIGINT
         - column:
@@ -32,5 +32,11 @@ databaseChangeLog:
               nullable: false
             name: title
             type: VARCHAR(255)
+        tableName: todolist
+- changeSet:
+    id: 1763910259559-2
+    author: taiker (generated)
+    changes:
+    - dropTable:
         tableName: todos
 
