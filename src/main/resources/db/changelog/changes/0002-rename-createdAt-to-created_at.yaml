@@ -1,0 +1,10 @@
+databaseChangeLog:
+  - changeSet:
+      id: 0002-rename-createdAt-to-created_at
+      author: taiker
+      changes:
+        - renameColumn:
+            tableName: todolist
+            oldColumnName: createdAt
+            newColumnName: created_at
+            columnDataType: TIMESTAMP WITH TIME ZONE
