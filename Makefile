@@ -1,10 +1,20 @@
 # Makefile for Liquibase Migration Management
 # Provides Django-like commands for database migrations
 
-.PHONY: help makemigration migrate migrate-one migrate-to showmigrations rollback rollback-preview fake-migrate fake-migrate-to fake-migrate-preview
+# Load environment variables from .env file
+-include .env
+export
+
+.PHONY: help run makemigration migrate migrate-one migrate-to showmigrations rollback rollback-preview fake-migrate fake-migrate-to fake-migrate-preview
 
 # Default target
 help:
+	@echo "=== Spring Boot Application Commands ==="
+	@echo ""
+	@echo "Application:"
+	@echo "  make run                        - Start Spring Boot application (default port 8080)"
+	@echo "  make run PORT=9090              - Start Spring Boot application on custom port"
+	@echo ""
 	@echo "=== Liquibase Migration Commands ==="
 	@echo ""
 	@echo "Migration Generation:"
@@ -32,6 +42,17 @@ CHANGES_DIR := src/main/resources/db/changelog/changes
 MVN := mvn
 NAME ?= auto_generated
 COUNT ?= 1
+PORT ?=
+
+# Application Commands
+run:
+ifdef PORT
+	@echo "Starting Spring Boot application on port $(PORT)..."
+	@$(MVN) spring-boot:run -Dspring-boot.run.arguments="--server.port=$(PORT)"
+else
+	@echo "Starting Spring Boot application on default port (8080)..."
+	@$(MVN) spring-boot:run
+endif
 
 # Auto-detect next migration number
 LATEST_NUM := $(shell ls $(CHANGES_DIR) 2>/dev/null | grep -E '^[0-9]+' | sed 's/^0*//' | sed 's/[^0-9].*//' | sort -n | tail -1)
