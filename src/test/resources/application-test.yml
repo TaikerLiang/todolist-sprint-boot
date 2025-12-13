@@ -1,0 +1,31 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:todolist-test;MODE=PostgreSQL
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+
+  liquibase:
+    enabled: false
+
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: false
+
+logging:
+  level:
+    root: WARN
+
+    # Spring framework noise
+    org.springframework: WARN
+
+    # Hibernate SQL + binding noise
+    org.hibernate.SQL: WARN
+    org.hibernate.type.descriptor.sql: WARN
+
+    # JPA bootstrap logs
+    org.springframework.orm.jpa: WARN
