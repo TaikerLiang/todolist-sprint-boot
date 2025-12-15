@@ -35,5 +35,8 @@ build/
 ### common
 .env
 
+### Claude Code ###
+.claude/settings.local.json
+
 ### SnapAdmin ###
 snapadmin_internal*
