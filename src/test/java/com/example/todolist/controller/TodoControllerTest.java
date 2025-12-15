@@ -1,6 +1,8 @@
 package com.example.todolist.controller;
 
+import com.example.todolist.model.Role;
 import com.example.todolist.model.Todo;
+import com.example.todolist.model.User;
 import com.example.todolist.service.TodoService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -41,8 +43,11 @@ class TodoControllerTest {
     @Test
     void getAllTodos_shouldReturnTodoList() throws Exception {
         // Arrange
-        Todo todo1 = new Todo("Task 1", "Desc 1");
-        Todo todo2 = new Todo("Task 2", "Desc 2");
+        User user = new User("testuser", Role.USER);
+        user.setId(1L);
+
+        Todo todo1 = new Todo("Task 1", "Desc 1", user);
+        Todo todo2 = new Todo("Task 2", "Desc 2", user);
 
         when(todoService.getAllTodos()).thenReturn(List.of(todo1, todo2));
 
@@ -57,9 +62,12 @@ class TodoControllerTest {
     @Test
     void createTodo_shouldReturnCreatedTodo() throws Exception {
         // Arrange
-        Todo request = new Todo("New Task", "New Desc");
+        User user = new User("testuser", Role.USER);
+        user.setId(1L);
 
-        Todo saved = new Todo("New Task", "New Desc");
+        Todo request = new Todo("New Task", "New Desc", user);
+
+        Todo saved = new Todo("New Task", "New Desc", user);
         saved.setId(1L);
 
         when(todoService.createTodo(any(Todo.class))).thenReturn(saved);
@@ -71,7 +79,8 @@ class TodoControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(1L))
                 .andExpect(jsonPath("$.title").value("New Task"))
-                .andExpect(jsonPath("$.completed").value(false));
+                .andExpect(jsonPath("$.completed").value(false))
+                .andExpect(jsonPath("$.user.id").value(1L));
     }
 
     @Test
@@ -79,7 +88,10 @@ class TodoControllerTest {
         // Arrange
         Long todoId = 1L;
 
-        Todo updated = new Todo("Updated Task", "Updated Desc");
+        User user = new User("testuser", Role.USER);
+        user.setId(1L);
+
+        Todo updated = new Todo("Updated Task", "Updated Desc", user);
         updated.setCompleted(true);
         updated.setId(todoId);
 
@@ -92,7 +104,8 @@ class TodoControllerTest {
                         .content(objectMapper.writeValueAsString(updated)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.title").value("Updated Task"))
-                .andExpect(jsonPath("$.completed").value(true));
+                .andExpect(jsonPath("$.completed").value(true))
+                .andExpect(jsonPath("$.user.id").value(1L));
     }
 
     @Test

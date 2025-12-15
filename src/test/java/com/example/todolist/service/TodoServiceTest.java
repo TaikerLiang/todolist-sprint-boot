@@ -1,7 +1,10 @@
 package com.example.todolist.service;
 
+import com.example.todolist.model.Role;
 import com.example.todolist.model.Todo;
+import com.example.todolist.model.User;
 import com.example.todolist.repository.TodoRepository;
+import com.example.todolist.repository.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -22,14 +25,20 @@ class TodoServiceTest {
     @Mock
     private TodoRepository todoRepository;
 
+    @Mock
+    private UserRepository userRepository;
+
     @InjectMocks
     private TodoService todoService;
 
     @Test
     void getAllTodos_shouldReturnAllTodos() {
         // Arrange
-        Todo todo1 = new Todo("Task 1", "Desc 1");
-        Todo todo2 = new Todo("Task 2", "Desc 2");
+        User user = new User("testuser", Role.USER);
+        user.setId(1L);
+
+        Todo todo1 = new Todo("Task 1", "Desc 1", user);
+        Todo todo2 = new Todo("Task 2", "Desc 2", user);
 
         when(todoRepository.findAll()).thenReturn(List.of(todo1, todo2));
 
@@ -47,11 +56,15 @@ class TodoServiceTest {
     @Test
     void createTodo_shouldSaveAndReturnTodo() {
         // Arrange
-        Todo todo = new Todo("New Task", "New Desc");
+        User user = new User("testuser", Role.USER);
+        user.setId(1L);
 
-        Todo savedTodo = new Todo("New Task", "New Desc");
+        Todo todo = new Todo("New Task", "New Desc", user);
+
+        Todo savedTodo = new Todo("New Task", "New Desc", user);
         savedTodo.setId(1L);
 
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
         when(todoRepository.save(any(Todo.class))).thenReturn(savedTodo);
 
         // Act
@@ -61,7 +74,9 @@ class TodoServiceTest {
         assertThat(result.getId()).isEqualTo(1L);
         assertThat(result.getTitle()).isEqualTo("New Task");
         assertThat(result.isCompleted()).isFalse();
+        assertThat(result.getUser()).isNotNull();
 
+        verify(userRepository).findById(1L);
         verify(todoRepository).save(todo);
     }
 
@@ -70,13 +85,17 @@ class TodoServiceTest {
         // Arrange
         Long todoId = 1L;
 
-        Todo existing = new Todo("Old Title", "Old Desc");
+        User user = new User("testuser", Role.USER);
+        user.setId(1L);
+
+        Todo existing = new Todo("Old Title", "Old Desc", user);
         existing.setId(todoId);
 
-        Todo updated = new Todo("New Title", "New Desc");
+        Todo updated = new Todo("New Title", "New Desc", user);
         updated.setCompleted(true);
 
         when(todoRepository.findById(todoId)).thenReturn(Optional.of(existing));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
         when(todoRepository.save(any(Todo.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         // Act
@@ -88,6 +107,7 @@ class TodoServiceTest {
         assertThat(result.isCompleted()).isTrue();
 
         verify(todoRepository).findById(todoId);
+        verify(userRepository).findById(1L);
         verify(todoRepository).save(existing);
     }
 
@@ -95,7 +115,11 @@ class TodoServiceTest {
     void updateTodo_shouldThrowException_whenTodoNotFound() {
         // Arrange
         Long todoId = 99L;
-        Todo updated = new Todo("Doesn't matter", "Nope");
+
+        User user = new User("testuser", Role.USER);
+        user.setId(1L);
+
+        Todo updated = new Todo("Doesn't matter", "Nope", user);
 
         when(todoRepository.findById(todoId)).thenReturn(Optional.empty());
 
@@ -120,5 +144,38 @@ class TodoServiceTest {
 
         // Assert
         verify(todoRepository).deleteById(todoId);
+    }
+
+    @Test
+    void createTodo_shouldThrowException_whenUserNotFound() {
+        // Arrange
+        User user = new User("testuser", Role.USER);
+        user.setId(99L);
+
+        Todo todo = new Todo("Task", "Desc", user);
+
+        when(userRepository.findById(99L)).thenReturn(Optional.empty());
+
+        // Act & Assert
+        assertThatThrownBy(() -> todoService.createTodo(todo))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessage("User not found with id: 99");
+
+        verify(userRepository).findById(99L);
+        verify(todoRepository, never()).save(any());
+    }
+
+    @Test
+    void createTodo_shouldThrowException_whenUserIsNull() {
+        // Arrange
+        Todo todo = new Todo("Task", "Desc", null);
+
+        // Act & Assert
+        assertThatThrownBy(() -> todoService.createTodo(todo))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessage("User is required");
+
+        verify(userRepository, never()).findById(any());
+        verify(todoRepository, never()).save(any());
     }
 }

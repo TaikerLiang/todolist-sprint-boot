@@ -30,10 +30,15 @@ public class Todo {
             columnDefinition = "TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP")
     private Instant createdAt = Instant.now();
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", nullable = false)
+    private User user;
+
     // Custom constructor for creating new todos
-    public Todo(String title, String description) {
+    public Todo(String title, String description, User user) {
         this.title = title;
         this.description = description;
+        this.user = user;
     }
 
 }

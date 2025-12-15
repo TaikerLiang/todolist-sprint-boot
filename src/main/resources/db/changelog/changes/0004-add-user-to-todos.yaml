@@ -1,0 +1,66 @@
+databaseChangeLog:
+  - changeSet:
+      id: 0004-add-user-to-todos-step1
+      author: system
+      changes:
+        # Step 1: Add user_id column as nullable (temporary)
+        - addColumn:
+            tableName: todolist
+            columns:
+              - column:
+                  name: user_id
+                  type: BIGINT
+                  constraints:
+                    nullable: true
+
+  - changeSet:
+      id: 0004-add-user-to-todos-step2
+      author: system
+      changes:
+        # Step 2: Create default 'system' user
+        - insert:
+            tableName: users
+            columns:
+              - column:
+                  name: username
+                  value: system
+              - column:
+                  name: role
+                  value: ADMIN
+              - column:
+                  name: created_at
+                  valueComputed: CURRENT_TIMESTAMP
+
+  - changeSet:
+      id: 0004-add-user-to-todos-step3
+      author: system
+      changes:
+        # Step 3: Assign all existing todos to 'system' user
+        - sql:
+            sql: >
+              UPDATE todolist
+              SET user_id = (SELECT id FROM users WHERE username = 'system')
+              WHERE user_id IS NULL
+
+  - changeSet:
+      id: 0004-add-user-to-todos-step4
+      author: system
+      changes:
+        # Step 4: Make user_id NOT NULL
+        - addNotNullConstraint:
+            tableName: todolist
+            columnName: user_id
+            columnDataType: BIGINT
+
+  - changeSet:
+      id: 0004-add-user-to-todos-step5
+      author: system
+      changes:
+        # Step 5: Add foreign key constraint
+        - addForeignKeyConstraint:
+            baseTableName: todolist
+            baseColumnNames: user_id
+            constraintName: fk_todolist_user
+            referencedTableName: users
+            referencedColumnNames: id
+            onDelete: CASCADE
