@@ -29,3 +29,6 @@ logging:
 
     # JPA bootstrap logs
     org.springframework.orm.jpa: WARN
+
+snapadmin:
+  enabled: false

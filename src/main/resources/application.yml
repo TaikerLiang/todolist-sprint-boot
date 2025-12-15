@@ -18,6 +18,12 @@ spring:
         format_sql: true
         jdbc:
           time_zone: UTC
+    open-in-view: true # Must be set for SnapAdmin to work correctly
 
   liquibase:
     change-log: classpath:db/changelog/db.changelog-master.yaml
+
+snapadmin:
+  enabled: true
+  baseUrl: admin
+  modelsPackage: com.example.todolist.model

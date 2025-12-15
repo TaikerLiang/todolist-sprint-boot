@@ -3,6 +3,9 @@ package com.example.todolist.controller;
 import com.example.todolist.model.Todo;
 import com.example.todolist.service.TodoService;
 import com.fasterxml.jackson.databind.ObjectMapper;
+
+import tech.ailef.snapadmin.external.SnapAdminAutoConfiguration;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -20,7 +23,10 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@WebMvcTest(TodoController.class)
+@WebMvcTest(
+    controllers = TodoController.class, // Specify the controllers to test
+    excludeAutoConfiguration = { SnapAdminAutoConfiguration.class } // Specify the exclusion
+)
 class TodoControllerTest {
 
     @Autowired
