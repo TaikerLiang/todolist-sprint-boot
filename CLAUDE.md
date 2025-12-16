@@ -154,3 +154,10 @@ Note: The Liquibase plugin is configured to use environment variables `DB_URL`, 
 - All timestamps should use `Instant` (UTC) rather than `LocalDateTime` to avoid timezone issues
 - JPA timezone is configured to UTC in `application.properties`
 - SQL queries are logged and formatted in console when running (see `spring.jpa.show-sql` and `hibernate.format_sql`)
+
+## Active Technologies
+- Java 21 + Spring Boot 3.1.5, Spring Data JPA, Hibernate 6, Liquibase 4.27.0, PostgreSQL driver (001-approval-workflow)
+- PostgreSQL database (existing) (001-approval-workflow)
+
+## Recent Changes
+- 001-approval-workflow: Added Java 21 + Spring Boot 3.1.5, Spring Data JPA, Hibernate 6, Liquibase 4.27.0, PostgreSQL driver

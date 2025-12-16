@@ -1,0 +1,578 @@
+openapi: 3.0.3
+info:
+  title: Todo List Approval Workflow API
+  description: REST API for multi-level approval workflow system
+  version: 1.0.0
+  contact:
+    name: Todo List API Team
+
+servers:
+  - url: http://localhost:8080/api
+    description: Local development server
+
+tags:
+  - name: Approvals
+    description: Approval request management and actions
+  - name: Notifications
+    description: User notifications for approval events
+
+paths:
+  /approvals:
+    get:
+      tags:
+        - Approvals
+      summary: List pending approval requests
+      description: Get all approval requests that require action from the current user based on their role
+      operationId: listPendingApprovals
+      parameters:
+        - name: itemType
+          in: query
+          description: Filter by item type
+          required: false
+          schema:
+            $ref: '#/components/schemas/ItemType'
+        - name: priorityLevel
+          in: query
+          description: Filter by priority level
+          required: false
+          schema:
+            $ref: '#/components/schemas/PriorityLevel'
+        - name: creatorId
+          in: query
+          description: Filter by creator user ID
+          required: false
+          schema:
+            type: integer
+            format: int64
+        - name: page
+          in: query
+          description: Page number (0-indexed)
+          required: false
+          schema:
+            type: integer
+            default: 0
+        - name: size
+          in: query
+          description: Page size
+          required: false
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  content:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ApprovalRequestDTO'
+                  totalElements:
+                    type: integer
+                    format: int64
+                  totalPages:
+                    type: integer
+                  number:
+                    type: integer
+                  size:
+                    type: integer
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+
+  /approvals/{id}:
+    get:
+      tags:
+        - Approvals
+      summary: Get approval request details
+      description: Retrieve detailed information about a specific approval request including approval history
+      operationId: getApprovalRequest
+      parameters:
+        - name: id
+          in: path
+          description: Approval request ID
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApprovalRequestDetailDTO'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /approvals/{id}/approve:
+    post:
+      tags:
+        - Approvals
+      summary: Approve an approval request
+      description: Approve a pending approval request. User must have appropriate role (manager or admin).
+      operationId: approveRequest
+      parameters:
+        - name: id
+          in: path
+          description: Approval request ID
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                comments:
+                  type: string
+                  description: Optional approval comments
+                  maxLength: 1000
+      responses:
+        '200':
+          description: Approval successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApprovalRequestDetailDTO'
+        '400':
+          description: Invalid request (e.g., already approved, invalid status)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          description: User does not have permission to approve this request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '409':
+          description: Concurrent modification conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /approvals/{id}/reject:
+    post:
+      tags:
+        - Approvals
+      summary: Reject an approval request
+      description: Reject a pending approval request with mandatory reason. User must have appropriate role.
+      operationId: rejectRequest
+      parameters:
+        - name: id
+          in: path
+          description: Approval request ID
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - reason
+              properties:
+                reason:
+                  type: string
+                  description: Rejection reason (required)
+                  minLength: 10
+                  maxLength: 1000
+      responses:
+        '200':
+          description: Rejection successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApprovalRequestDetailDTO'
+        '400':
+          description: Invalid request (e.g., missing reason, invalid status)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          description: User does not have permission to reject this request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '409':
+          description: Concurrent modification conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /approvals/{id}/withdraw:
+    post:
+      tags:
+        - Approvals
+      summary: Withdraw an approval request
+      description: Withdraw a pending approval request. Only the creator can withdraw their own request.
+      operationId: withdrawRequest
+      parameters:
+        - name: id
+          in: path
+          description: Approval request ID
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Withdrawal successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApprovalRequestDetailDTO'
+        '400':
+          description: Invalid request (e.g., not in pending status)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          description: User is not the creator of this request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /approvals/my-requests:
+    get:
+      tags:
+        - Approvals
+      summary: Get current user's approval requests
+      description: Retrieve all approval requests created by the current user
+      operationId: getMyApprovalRequests
+      parameters:
+        - name: status
+          in: query
+          description: Filter by approval status
+          required: false
+          schema:
+            $ref: '#/components/schemas/ApprovalStatus'
+        - name: page
+          in: query
+          description: Page number (0-indexed)
+          required: false
+          schema:
+            type: integer
+            default: 0
+        - name: size
+          in: query
+          description: Page size
+          required: false
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  content:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ApprovalRequestDTO'
+                  totalElements:
+                    type: integer
+                    format: int64
+                  totalPages:
+                    type: integer
+                  number:
+                    type: integer
+                  size:
+                    type: integer
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /notifications:
+    get:
+      tags:
+        - Notifications
+      summary: Get user notifications
+      description: Retrieve all notifications for the current user
+      operationId: getNotifications
+      parameters:
+        - name: unreadOnly
+          in: query
+          description: Show only unread notifications
+          required: false
+          schema:
+            type: boolean
+            default: false
+        - name: page
+          in: query
+          description: Page number (0-indexed)
+          required: false
+          schema:
+            type: integer
+            default: 0
+        - name: size
+          in: query
+          description: Page size
+          required: false
+          schema:
+            type: integer
+            default: 50
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  content:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/NotificationDTO'
+                  totalElements:
+                    type: integer
+                    format: int64
+                  totalPages:
+                    type: integer
+                  number:
+                    type: integer
+                  size:
+                    type: integer
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /notifications/{id}/mark-read:
+    post:
+      tags:
+        - Notifications
+      summary: Mark notification as read
+      description: Mark a specific notification as read
+      operationId: markNotificationAsRead
+      parameters:
+        - name: id
+          in: path
+          description: Notification ID
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Notification marked as read
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          description: Notification does not belong to current user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+components:
+  schemas:
+    ApprovalRequestDTO:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        itemType:
+          $ref: '#/components/schemas/ItemType'
+        itemId:
+          type: integer
+          format: int64
+        itemTitle:
+          type: string
+          description: Title/description of the item being approved
+        creatorId:
+          type: integer
+          format: int64
+        creatorUsername:
+          type: string
+        status:
+          $ref: '#/components/schemas/ApprovalStatus'
+        priorityLevel:
+          $ref: '#/components/schemas/PriorityLevel'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    ApprovalRequestDetailDTO:
+      allOf:
+        - $ref: '#/components/schemas/ApprovalRequestDTO'
+        - type: object
+          properties:
+            approvalHistory:
+              type: array
+              items:
+                $ref: '#/components/schemas/ApprovalRecordDTO'
+            requiredRoles:
+              type: array
+              items:
+                type: string
+              description: Roles required to approve this request
+            pendingRoles:
+              type: array
+              items:
+                type: string
+              description: Roles that have not yet approved
+
+    ApprovalRecordDTO:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        approverId:
+          type: integer
+          format: int64
+        approverUsername:
+          type: string
+        approverRole:
+          type: string
+        decision:
+          $ref: '#/components/schemas/DecisionType'
+        comments:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        isSelfApproval:
+          type: boolean
+          description: Whether the approver is also the creator
+
+    NotificationDTO:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        type:
+          $ref: '#/components/schemas/NotificationType'
+        approvalRequestId:
+          type: integer
+          format: int64
+        message:
+          type: string
+        readStatus:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+
+    ItemType:
+      type: string
+      enum:
+        - TODO
+        - INVOICE
+
+    PriorityLevel:
+      type: string
+      enum:
+        - LOW
+        - MEDIUM
+        - HIGH
+
+    ApprovalStatus:
+      type: string
+      enum:
+        - DRAFT
+        - PENDING
+        - APPROVED
+        - REJECTED
+        - WITHDRAWN
+
+    DecisionType:
+      type: string
+      enum:
+        - APPROVED
+        - REJECTED
+
+    NotificationType:
+      type: string
+      enum:
+        - APPROVAL_REQUESTED
+        - APPROVED
+        - REJECTED
+
+    ErrorResponse:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        status:
+          type: integer
+        error:
+          type: string
+        message:
+          type: string
+        path:
+          type: string
+
+  responses:
+    UnauthorizedError:
+      description: Authentication required
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    ForbiddenError:
+      description: Insufficient permissions
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    NotFoundError:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+security:
+  - bearerAuth: []
