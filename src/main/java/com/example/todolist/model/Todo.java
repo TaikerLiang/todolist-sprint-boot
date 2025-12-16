@@ -25,6 +25,10 @@ public class Todo {
     @Column(nullable = false)
     private boolean completed = false;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 8, columnDefinition = "varchar(8) default 'MEDIUM'")
+    private Level level = Level.MEDIUM;
+
     // UTC-safe creation timestamp
     @Column(nullable = false, updatable = false,
             columnDefinition = "TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP")
@@ -39,6 +43,14 @@ public class Todo {
         this.title = title;
         this.description = description;
         this.user = user;
+    }
+
+    // Constructor with level
+    public Todo(String title, String description, User user, Level level) {
+        this.title = title;
+        this.description = description;
+        this.user = user;
+        this.level = level;
     }
 
 }

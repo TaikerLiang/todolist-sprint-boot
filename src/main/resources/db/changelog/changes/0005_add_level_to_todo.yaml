@@ -1,0 +1,44 @@
+databaseChangeLog:
+- changeSet:
+    id: 1765896411676-2
+    author: taiker (generated)
+    changes:
+    - addColumn:
+        columns:
+        - column:
+            constraints:
+              nullable: false
+            defaultValue: MEDIUM
+            name: level
+            type: varchar(8)
+        tableName: todolist
+- changeSet:
+    id: 1765896411676-3
+    author: taiker (generated)
+    changes:
+    - dropColumn:
+        columnName: created_at
+        tableName: todolist
+- changeSet:
+    id: 1765896411676-4
+    author: taiker (generated)
+    changes:
+    - dropColumn:
+        columnName: created_at
+        tableName: users
+- changeSet:
+    id: 1765896411676-1
+    author: taiker (generated)
+    changes:
+    - modifyDataType:
+        columnName: role
+        newDataType: varchar(255)
+        tableName: users
+
+
+- changeSet:
+    id: tag-0005
+    author: taiker
+    changes:
+      - tagDatabase:
+          tag: "0005"
