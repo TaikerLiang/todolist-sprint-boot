@@ -1,0 +1,28 @@
+databaseChangeLog:
+- changeSet:
+    id: 1765897477875-1
+    author: taiker (generated)
+    changes:
+    - addColumn:
+        columns:
+        - column:
+            constraints:
+              nullable: false
+            name: amount
+            type: numeric(10, 2)
+        tableName: invoices
+- changeSet:
+    id: 1765897477875-2
+    author: taiker (generated)
+    changes:
+    - dropColumn:
+        columnName: value
+        tableName: invoices
+
+
+- changeSet:
+    id: tag-0006
+    author: taiker
+    changes:
+      - tagDatabase:
+          tag: "0006"
