@@ -1,0 +1,454 @@
+openapi: 3.0.3
+info:
+  title: Approval Workflow API
+  description: REST API for managing approval requests in the Todo List application
+  version: 1.0.0
+  contact:
+    name: Todo List API Team
+
+servers:
+  - url: http://localhost:8080/api
+    description: Local development server
+
+tags:
+  - name: Approval Requests
+    description: Operations for managing approval requests
+  - name: Approval Actions
+    description: Operations for approving/rejecting/withdrawing requests
+
+paths:
+  /approval-requests:
+    get:
+      tags:
+        - Approval Requests
+      summary: List approval requests
+      description: Get all approval requests, optionally filtered by status, item type, or requester
+      operationId: listApprovalRequests
+      parameters:
+        - name: status
+          in: query
+          description: Filter by approval status
+          schema:
+            type: string
+            enum: [PENDING, PARTIALLY_APPROVED, APPROVED, REJECTED, WITHDRAWN]
+        - name: targetItemType
+          in: query
+          description: Filter by item type (e.g., TODO, INVOICE)
+          schema:
+            type: string
+        - name: requesterId
+          in: query
+          description: Filter by requester user ID
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: List of approval requests
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ApprovalRequestResponse'
+
+    post:
+      tags:
+        - Approval Requests
+      summary: Submit approval request
+      description: Create a new approval request for an item operation
+      operationId: submitApprovalRequest
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubmitApprovalRequest'
+      responses:
+        '201':
+          description: Approval request created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApprovalRequestResponse'
+        '400':
+          description: Invalid request data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Item is locked (active approval request exists)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /approval-requests/{id}:
+    get:
+      tags:
+        - Approval Requests
+      summary: Get approval request details
+      description: Retrieve details of a specific approval request, including diff for updates
+      operationId: getApprovalRequest
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Approval request details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApprovalRequestDetailResponse'
+        '404':
+          description: Approval request not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /approval-requests/{id}/approve:
+    post:
+      tags:
+        - Approval Actions
+      summary: Approve an approval request
+      description: Approve a pending approval request. If all required approvals are met, the change is applied.
+      operationId: approveRequest
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApprovalDecisionRequest'
+      responses:
+        '200':
+          description: Approval recorded successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApprovalRequestResponse'
+        '400':
+          description: Invalid request (e.g., already approved by this user)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: User does not have required role to approve
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Approval request not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /approval-requests/{id}/reject:
+    post:
+      tags:
+        - Approval Actions
+      summary: Reject an approval request
+      description: Reject a pending approval request. The change will not be applied.
+      operationId: rejectRequest
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApprovalDecisionRequest'
+      responses:
+        '200':
+          description: Rejection recorded successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApprovalRequestResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: User does not have required role to reject
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Approval request not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /approval-requests/{id}/withdraw:
+    post:
+      tags:
+        - Approval Actions
+      summary: Withdraw an approval request
+      description: Withdraw a pending or partially approved request. Only the requester can withdraw their own request.
+      operationId: withdrawRequest
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Request withdrawn successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApprovalRequestResponse'
+        '400':
+          description: Request cannot be withdrawn (already approved/rejected)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: User is not the requester
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Approval request not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /approval-requests/pending-for-me:
+    get:
+      tags:
+        - Approval Requests
+      summary: Get pending requests for current user
+      description: Retrieve all approval requests that require approval from the current user (based on their role)
+      operationId: getPendingRequestsForCurrentUser
+      responses:
+        '200':
+          description: List of pending approval requests
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ApprovalRequestResponse'
+
+components:
+  schemas:
+    SubmitApprovalRequest:
+      type: object
+      required:
+        - targetItemType
+        - operation
+      properties:
+        targetItemType:
+          type: string
+          description: Type of item (e.g., TODO, INVOICE)
+          example: TODO
+        targetItemId:
+          type: integer
+          format: int64
+          description: ID of target item (required for UPDATE/DELETE, null for CREATE)
+          example: 42
+        operation:
+          type: string
+          enum: [CREATE, UPDATE, DELETE]
+          description: Type of operation
+          example: UPDATE
+        requestedData:
+          type: object
+          description: Data for CREATE/UPDATE operations (JSON object specific to item type)
+          example:
+            title: "New Todo Title"
+            description: "Updated description"
+            level: "HIGH"
+
+    ApprovalDecisionRequest:
+      type: object
+      properties:
+        comment:
+          type: string
+          description: Optional comment explaining the decision
+          example: "Approved as per policy guidelines"
+
+    ApprovalRequestResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 123
+        targetItemType:
+          type: string
+          example: TODO
+        targetItemId:
+          type: integer
+          format: int64
+          nullable: true
+          example: 42
+        operation:
+          type: string
+          enum: [CREATE, UPDATE, DELETE]
+          example: UPDATE
+        requestedData:
+          type: object
+          nullable: true
+          description: Requested data (null for DELETE operations)
+        status:
+          type: string
+          enum: [PENDING, PARTIALLY_APPROVED, APPROVED, REJECTED, WITHDRAWN]
+          example: PENDING
+        requester:
+          $ref: '#/components/schemas/UserSummary'
+        createdAt:
+          type: string
+          format: date-time
+          example: "2025-12-27T10:30:00Z"
+        updatedAt:
+          type: string
+          format: date-time
+          example: "2025-12-27T11:15:00Z"
+
+    ApprovalRequestDetailResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApprovalRequestResponse'
+        - type: object
+          properties:
+            approvalRecords:
+              type: array
+              items:
+                $ref: '#/components/schemas/ApprovalRecordResponse'
+            diff:
+              type: object
+              nullable: true
+              description: Field-by-field diff for UPDATE operations (null for CREATE/DELETE)
+              additionalProperties:
+                $ref: '#/components/schemas/FieldDiff'
+            requiredApprovals:
+              type: object
+              description: Information about approval requirements
+              properties:
+                ruleType:
+                  type: string
+                  enum: [ALL_REQUIRED, ANY_REQUIRED]
+                  example: ALL_REQUIRED
+                requiredRoles:
+                  type: array
+                  items:
+                    type: string
+                  example: ["ADMIN", "MANAGER"]
+                approvedRoles:
+                  type: array
+                  items:
+                    type: string
+                  example: ["MANAGER"]
+                remainingRoles:
+                  type: array
+                  items:
+                    type: string
+                  example: ["ADMIN"]
+
+    ApprovalRecordResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 456
+        approver:
+          $ref: '#/components/schemas/UserSummary'
+        decision:
+          type: boolean
+          description: True = approved, False = rejected
+          example: true
+        comment:
+          type: string
+          nullable: true
+          example: "Looks good to me"
+        createdAt:
+          type: string
+          format: date-time
+          example: "2025-12-27T11:00:00Z"
+
+    FieldDiff:
+      type: object
+      properties:
+        oldValue:
+          description: Current value in database
+          example: "Medium priority task"
+        newValue:
+          description: Proposed new value
+          example: "High priority task"
+
+    UserSummary:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 7
+        username:
+          type: string
+          example: "john.doe"
+        role:
+          type: string
+          enum: [ADMIN, MANAGER, USER]
+          example: MANAGER
+
+    ErrorResponse:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+          example: "2025-12-27T12:00:00Z"
+        status:
+          type: integer
+          example: 400
+        error:
+          type: string
+          example: "Bad Request"
+        message:
+          type: string
+          example: "Item is locked for review. An active approval request exists."
+        path:
+          type: string
+          example: "/api/approval-requests"
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token for authenticated requests
+
+security:
+  - bearerAuth: []
