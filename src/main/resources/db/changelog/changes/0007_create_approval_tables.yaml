@@ -1,0 +1,185 @@
+databaseChangeLog:
+- changeSet:
+    id: 1766895258852-1
+    author: taiker (generated)
+    changes:
+    - createTable:
+        columns:
+        - column:
+            autoIncrement: true
+            constraints:
+              nullable: false
+              primaryKey: true
+              primaryKeyName: approval_recordsPK
+            name: id
+            type: BIGINT
+        - column:
+            name: comment
+            type: TEXT
+        - column:
+            constraints:
+              nullable: false
+            defaultValueComputed: CURRENT_TIMESTAMP
+            name: created_at
+            type: TIMESTAMP WITH TIME ZONE
+        - column:
+            constraints:
+              nullable: false
+            name: decision
+            type: BOOLEAN
+        - column:
+            constraints:
+              nullable: false
+            name: approval_request_id
+            type: BIGINT
+        - column:
+            constraints:
+              nullable: false
+            name: approver_id
+            type: BIGINT
+        tableName: approval_records
+- changeSet:
+    id: 1766895258852-2
+    author: taiker (generated)
+    changes:
+    - createTable:
+        columns:
+        - column:
+            autoIncrement: true
+            constraints:
+              nullable: false
+              primaryKey: true
+              primaryKeyName: approval_requestsPK
+            name: id
+            type: BIGINT
+        - column:
+            constraints:
+              nullable: false
+            defaultValueComputed: CURRENT_TIMESTAMP
+            name: created_at
+            type: TIMESTAMP WITH TIME ZONE
+        - column:
+            constraints:
+              nullable: false
+            name: operation
+            type: VARCHAR(16)
+        - column:
+            name: requested_data
+            type: JSONB
+        - column:
+            constraints:
+              nullable: false
+            name: status
+            type: VARCHAR(32)
+        - column:
+            name: target_item_id
+            type: BIGINT
+        - column:
+            constraints:
+              nullable: false
+            name: target_item_type
+            type: VARCHAR(255)
+        - column:
+            constraints:
+              nullable: false
+            name: updated_at
+            type: TIMESTAMP(6) WITHOUT TIME ZONE
+        - column:
+            constraints:
+              nullable: false
+            name: requester_id
+            type: BIGINT
+        tableName: approval_requests
+- changeSet:
+    id: 1766895258852-3
+    author: taiker (generated)
+    changes:
+    - addForeignKeyConstraint:
+        baseColumnNames: requester_id
+        baseTableName: approval_requests
+        constraintName: FK7m48f3lxvmo7siav7yxwp8l8f
+        deferrable: false
+        initiallyDeferred: false
+        referencedColumnNames: id
+        referencedTableName: users
+        validate: true
+- changeSet:
+    id: 1766895258852-4
+    author: taiker (generated)
+    changes:
+    - addForeignKeyConstraint:
+        baseColumnNames: approval_request_id
+        baseTableName: approval_records
+        constraintName: FKh87n86j1gu3jmf8pc2smq96bu
+        deferrable: false
+        initiallyDeferred: false
+        referencedColumnNames: id
+        referencedTableName: approval_requests
+        validate: true
+- changeSet:
+    id: 1766895258852-5
+    author: taiker (generated)
+    changes:
+    - addForeignKeyConstraint:
+        baseColumnNames: approver_id
+        baseTableName: approval_records
+        constraintName: FKpiegtiv1mkj4am4ipxx3d2iqp
+        deferrable: false
+        initiallyDeferred: false
+        referencedColumnNames: id
+        referencedTableName: users
+        validate: true
+- changeSet:
+    id: 1766895258852-6
+    author: taiker
+    changes:
+    - createIndex:
+        columns:
+        - column:
+            name: target_item_type
+        - column:
+            name: target_item_id
+        indexName: idx_approval_requests_item
+        tableName: approval_requests
+    - createIndex:
+        columns:
+        - column:
+            name: status
+        indexName: idx_approval_requests_status
+        tableName: approval_requests
+- changeSet:
+    id: 1766895258852-7
+    author: taiker
+    changes:
+    - sql:
+        comment: Create unique partial index to enforce one active request per item
+        sql: >-
+          CREATE UNIQUE INDEX idx_one_active_request_per_item
+          ON approval_requests (target_item_type, target_item_id)
+          WHERE status IN ('PENDING', 'PARTIALLY_APPROVED');
+- changeSet:
+    id: 1766895258852-8
+    author: taiker
+    changes:
+    - addUniqueConstraint:
+        columnNames: approval_request_id, approver_id
+        constraintName: uk_approval_record_unique
+        tableName: approval_records
+- changeSet:
+    id: 1766895258852-9
+    author: taiker
+    changes:
+    - createIndex:
+        columns:
+        - column:
+            name: approval_request_id
+        - column:
+            name: decision
+        indexName: idx_approval_records_request_decision
+        tableName: approval_records
+- changeSet:
+    id: tag-0007
+    author: taiker
+    changes:
+      - tagDatabase:
+          tag: "0007"
