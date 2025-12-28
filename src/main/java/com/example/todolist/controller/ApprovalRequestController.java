@@ -7,12 +7,14 @@ import com.example.todolist.dto.SubmitApprovalDTO;
 import com.example.todolist.model.ApprovalRecord;
 import com.example.todolist.model.ApprovalRequest;
 import com.example.todolist.service.ApprovalWorkflowService;
+import com.example.todolist.service.DiffService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -26,14 +28,17 @@ import java.util.stream.Collectors;
 public class ApprovalRequestController {
 
     private final ApprovalWorkflowService approvalWorkflowService;
+    private final DiffService diffService;
     private final ObjectMapper objectMapper;
 
     @Autowired
     public ApprovalRequestController(
             ApprovalWorkflowService approvalWorkflowService,
+            DiffService diffService,
             ObjectMapper objectMapper
     ) {
         this.approvalWorkflowService = approvalWorkflowService;
+        this.diffService = diffService;
         this.objectMapper = objectMapper;
     }
 
@@ -140,13 +145,36 @@ public class ApprovalRequestController {
     }
 
     /**
-     * Get a specific approval request by ID
+     * Get a specific approval request by ID with diff view
      * GET /api/approval-requests/{requestId}
      */
     @GetMapping("/{requestId}")
     public ResponseEntity<?> getRequestById(@PathVariable Long requestId) {
         return approvalWorkflowService.getRequestById(requestId)
-                .map(request -> ResponseEntity.ok(ApprovalRequestResponseDTO.fromEntity(request, objectMapper)))
+                .map(request -> {
+                    try {
+                        Map<String, Object> response = new HashMap<>();
+                        response.put("request", ApprovalRequestResponseDTO.fromEntity(request, objectMapper));
+
+                        // Generate diff for the request
+                        Map<String, Object> requestedData = objectMapper.readValue(
+                                request.getRequestedData(),
+                                Map.class
+                        );
+                        List<DiffService.FieldDiff> diffs = diffService.generateDiff(
+                                request.getTargetItemType(),
+                                request.getOperation().name(),
+                                request.getTargetItemId(),
+                                requestedData
+                        );
+                        response.put("diff", diffs);
+
+                        return ResponseEntity.ok(response);
+                    } catch (Exception e) {
+                        // Fallback to just returning the request if diff fails
+                        return ResponseEntity.ok(ApprovalRequestResponseDTO.fromEntity(request, objectMapper));
+                    }
+                })
                 .orElse(ResponseEntity.notFound().build());
     }
 

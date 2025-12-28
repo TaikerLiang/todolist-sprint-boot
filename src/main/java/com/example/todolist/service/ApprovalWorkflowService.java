@@ -7,9 +7,11 @@ import com.example.todolist.repository.UserRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -27,6 +29,8 @@ public class ApprovalWorkflowService {
     private final ApprovalRuleService approvalRuleService;
     private final NotificationService notificationService;
     private final ObjectMapper objectMapper;
+    private final TodoService todoService;
+    private final InvoiceService invoiceService;
 
     @Autowired
     public ApprovalWorkflowService(
@@ -35,7 +39,9 @@ public class ApprovalWorkflowService {
             UserRepository userRepository,
             ApprovalRuleService approvalRuleService,
             NotificationService notificationService,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            @Lazy TodoService todoService,
+            @Lazy InvoiceService invoiceService
     ) {
         this.approvalRequestRepository = approvalRequestRepository;
         this.approvalRecordRepository = approvalRecordRepository;
@@ -43,6 +49,8 @@ public class ApprovalWorkflowService {
         this.approvalRuleService = approvalRuleService;
         this.notificationService = notificationService;
         this.objectMapper = objectMapper;
+        this.todoService = todoService;
+        this.invoiceService = invoiceService;
     }
 
     /**
@@ -211,7 +219,21 @@ public class ApprovalWorkflowService {
         // Check if rule is satisfied
         if (approvalRuleService.isRuleSatisfied(rule, approvedRoles)) {
             request.setStatus(ApprovalStatus.APPROVED);
-            notificationService.notifyRequestApproved(request);
+            request.setUpdatedAt(Instant.now());
+            approvalRequestRepository.save(request);
+
+            // Execute the approved change
+            try {
+                executeApprovedChange(request);
+                notificationService.notifyRequestApproved(request);
+            } catch (Exception e) {
+                // If execution fails, mark as rejected
+                request.setStatus(ApprovalStatus.REJECTED);
+                request.setUpdatedAt(Instant.now());
+                approvalRequestRepository.save(request);
+                notificationService.notifyRequestRejected(request, "Failed to execute change: " + e.getMessage());
+                throw new IllegalStateException("Failed to execute approved change: " + e.getMessage(), e);
+            }
         } else {
             request.setStatus(ApprovalStatus.PARTIALLY_APPROVED);
             notificationService.notifyApproverResponded(request, approver, true);
@@ -304,6 +326,148 @@ public class ApprovalWorkflowService {
      */
     public List<ApprovalRecord> getApprovalRecords(Long requestId) {
         return approvalRecordRepository.findByApprovalRequestId(requestId);
+    }
+
+    /**
+     * Execute an approved change (CREATE/UPDATE/DELETE operation).
+     * This method should be called when an approval request reaches APPROVED status.
+     *
+     * @param request The approved approval request
+     * @return The result of the operation (created/updated entity or null for DELETE)
+     * @throws IllegalStateException if request is not approved or operation fails
+     */
+    @Transactional
+    public Object executeApprovedChange(ApprovalRequest request) {
+        if (request.getStatus() != ApprovalStatus.APPROVED) {
+            throw new IllegalStateException("Can only execute approved requests");
+        }
+
+        Map<String, Object> requestedData = deserializeData(request.getRequestedData());
+
+        switch (request.getTargetItemType()) {
+            case "TODO":
+                return executeTodoChange(request, requestedData);
+            case "INVOICE":
+                return executeInvoiceChange(request, requestedData);
+            default:
+                throw new IllegalArgumentException("Unsupported item type: " + request.getTargetItemType());
+        }
+    }
+
+    private Object executeTodoChange(ApprovalRequest request, Map<String, Object> data) {
+        switch (request.getOperation()) {
+            case CREATE:
+                return createTodoFromData(data);
+            case UPDATE:
+                if (request.getTargetItemId() == null) {
+                    throw new IllegalStateException("Target ID required for UPDATE");
+                }
+                return updateTodoFromData(request.getTargetItemId(), data);
+            case DELETE:
+                if (request.getTargetItemId() == null) {
+                    throw new IllegalStateException("Target ID required for DELETE");
+                }
+                todoService.deleteTodo(request.getTargetItemId());
+                return null;
+            default:
+                throw new IllegalArgumentException("Unsupported operation: " + request.getOperation());
+        }
+    }
+
+    private Object executeInvoiceChange(ApprovalRequest request, Map<String, Object> data) {
+        switch (request.getOperation()) {
+            case CREATE:
+                return createInvoiceFromData(data);
+            case UPDATE:
+                if (request.getTargetItemId() == null) {
+                    throw new IllegalStateException("Target ID required for UPDATE");
+                }
+                return updateInvoiceFromData(request.getTargetItemId(), data);
+            case DELETE:
+                if (request.getTargetItemId() == null) {
+                    throw new IllegalStateException("Target ID required for DELETE");
+                }
+                invoiceService.deleteInvoice(request.getTargetItemId());
+                return null;
+            default:
+                throw new IllegalArgumentException("Unsupported operation: " + request.getOperation());
+        }
+    }
+
+    private Todo createTodoFromData(Map<String, Object> data) {
+        Todo todo = new Todo();
+        todo.setTitle((String) data.get("title"));
+        todo.setDescription((String) data.get("description"));
+        if (data.get("level") != null) {
+            todo.setLevel(Level.valueOf((String) data.get("level")));
+        }
+        if (data.get("completed") != null) {
+            todo.setCompleted((Boolean) data.get("completed"));
+        }
+        if (data.get("userId") != null) {
+            User user = userRepository.findById(((Number) data.get("userId")).longValue())
+                    .orElseThrow(() -> new IllegalArgumentException("User not found"));
+            todo.setUser(user);
+        }
+        return todoService.createTodo(todo);
+    }
+
+    private Todo updateTodoFromData(Long todoId, Map<String, Object> data) {
+        Todo todo = new Todo();
+        if (data.get("title") != null) todo.setTitle((String) data.get("title"));
+        if (data.get("description") != null) todo.setDescription((String) data.get("description"));
+        if (data.get("level") != null) todo.setLevel(Level.valueOf((String) data.get("level")));
+        if (data.get("completed") != null) todo.setCompleted((Boolean) data.get("completed"));
+        if (data.get("userId") != null) {
+            User user = userRepository.findById(((Number) data.get("userId")).longValue())
+                    .orElseThrow(() -> new IllegalArgumentException("User not found"));
+            todo.setUser(user);
+        }
+        return todoService.updateTodo(todoId, todo);
+    }
+
+    private Invoice createInvoiceFromData(Map<String, Object> data) {
+        Invoice invoice = new Invoice();
+        if (data.get("amount") != null) {
+            Object amountObj = data.get("amount");
+            if (amountObj instanceof Number) {
+                invoice.setAmount(new BigDecimal(amountObj.toString()));
+            }
+        }
+        if (data.get("status") != null) {
+            invoice.setStatus(InvoiceStatus.valueOf((String) data.get("status")));
+        }
+        if (data.get("level") != null) {
+            invoice.setLevel(Level.valueOf((String) data.get("level")));
+        }
+        if (data.get("userId") != null) {
+            User user = userRepository.findById(((Number) data.get("userId")).longValue())
+                    .orElseThrow(() -> new IllegalArgumentException("User not found"));
+            invoice.setUser(user);
+        }
+        return invoiceService.createInvoice(invoice);
+    }
+
+    private Invoice updateInvoiceFromData(Long invoiceId, Map<String, Object> data) {
+        Invoice invoice = new Invoice();
+        if (data.get("amount") != null) {
+            Object amountObj = data.get("amount");
+            if (amountObj instanceof Number) {
+                invoice.setAmount(new BigDecimal(amountObj.toString()));
+            }
+        }
+        if (data.get("status") != null) {
+            invoice.setStatus(InvoiceStatus.valueOf((String) data.get("status")));
+        }
+        if (data.get("level") != null) {
+            invoice.setLevel(Level.valueOf((String) data.get("level")));
+        }
+        if (data.get("userId") != null) {
+            User user = userRepository.findById(((Number) data.get("userId")).longValue())
+                    .orElseThrow(() -> new IllegalArgumentException("User not found"));
+            invoice.setUser(user);
+        }
+        return invoiceService.updateInvoice(invoiceId, invoice);
     }
 
     // Helper methods
