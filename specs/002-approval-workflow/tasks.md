@@ -26,9 +26,9 @@
 
 **Purpose**: Project initialization and verification of existing structure
 
-- [ ] T001 Verify existing Spring Boot project structure and dependencies
-- [ ] T002 Verify PostgreSQL database connection and Liquibase configuration
-- [ ] T003 [P] Verify existing User, Todo, and Invoice entities are compatible with approval workflow
+- [x] T001 Verify existing Spring Boot project structure and dependencies
+- [x] T002 Verify PostgreSQL database connection and Liquibase configuration
+- [x] T003 [P] Verify existing User, Todo, and Invoice entities are compatible with approval workflow
 
 ---
 
@@ -40,29 +40,26 @@
 
 ### Enums
 
-- [ ] T004 [P] Create ApprovalStatus enum in src/main/java/com/example/todolist/model/ApprovalStatus.java
-- [ ] T005 [P] Create RequestOperation enum in src/main/java/com/example/todolist/model/RequestOperation.java
-- [ ] T006 [P] Create RuleType enum in src/main/java/com/example/todolist/model/RuleType.java
+- [x] T004 [P] Create ApprovalStatus enum in src/main/java/com/example/todolist/model/ApprovalStatus.java
+- [x] T005 [P] Create RequestOperation enum in src/main/java/com/example/todolist/model/RequestOperation.java
 
-### Core Entities
+### Core Entities & POJOs
 
-- [ ] T007 [P] Create ApprovalRequest entity in src/main/java/com/example/todolist/model/ApprovalRequest.java
-- [ ] T008 [P] Create ApprovalRecord entity in src/main/java/com/example/todolist/model/ApprovalRecord.java
-- [ ] T009 [P] Create ApprovalRule entity in src/main/java/com/example/todolist/model/ApprovalRule.java
+- [x] T007 [P] Create ApprovalRequest entity in src/main/java/com/example/todolist/model/ApprovalRequest.java
+- [x] T008 [P] Create ApprovalRecord entity in src/main/java/com/example/todolist/model/ApprovalRecord.java
+- [x] T009 [P] Create ApprovalRule POJO and RoleRequirement in src/main/java/com/example/todolist/model/
+- [x] T009b Create ApprovalRulesConfig with code-based rules in src/main/java/com/example/todolist/config/ApprovalRulesConfig.java
 
 ### Database Migration
 
 - [ ] T010 Generate Liquibase migration for approval tables using ./mvnw liquibase:diff
 - [ ] T011 Review and enhance generated migration with unique partial index for item locking in src/main/resources/db/changelog/changes/
 - [ ] T012 Apply database migration using ./mvnw liquibase:update or make migrate
-- [ ] T013 Create SQL seed script for initial approval rules in src/main/resources/db/changelog/changes/seed-approval-rules.sql
-- [ ] T014 Apply approval rules seed data
 
 ### Repositories
 
 - [ ] T015 [P] Create ApprovalRequestRepository in src/main/java/com/example/todolist/repository/ApprovalRequestRepository.java
 - [ ] T016 [P] Create ApprovalRecordRepository in src/main/java/com/example/todolist/repository/ApprovalRecordRepository.java
-- [ ] T017 [P] Create ApprovalRuleRepository in src/main/java/com/example/todolist/repository/ApprovalRuleRepository.java
 
 ### Core Services
 
