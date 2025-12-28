@@ -1,11 +1,9 @@
 package com.example.todolist.controller;
 
 import com.example.todolist.dto.ApprovalRequestResponseDTO;
-import com.example.todolist.model.ApprovalRequest;
-import com.example.todolist.model.RequestOperation;
-import com.example.todolist.model.Todo;
+import com.example.todolist.model.*;
 import com.example.todolist.service.ApprovalWorkflowService;
-import com.example.todolist.service.TodoService;
+import com.example.todolist.service.InvoiceService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -18,182 +16,192 @@ import java.util.List;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/api/todos")
-public class TodoController {
+@RequestMapping("/api/invoices")
+public class InvoiceController {
 
-    private static final Logger logger = LoggerFactory.getLogger(TodoController.class);
+    private static final Logger logger = LoggerFactory.getLogger(InvoiceController.class);
 
-    private final TodoService todoService;
+    private final InvoiceService invoiceService;
     private final ApprovalWorkflowService approvalWorkflowService;
     private final ObjectMapper objectMapper;
 
-    public TodoController(
-            TodoService todoService,
+    public InvoiceController(
+            InvoiceService invoiceService,
             ApprovalWorkflowService approvalWorkflowService,
             ObjectMapper objectMapper
     ) {
-        this.todoService = todoService;
+        this.invoiceService = invoiceService;
         this.approvalWorkflowService = approvalWorkflowService;
         this.objectMapper = objectMapper;
     }
 
     @GetMapping
-    public List<Todo> getAllTodos() {
-        logger.info("Fetching all todos");
-        return todoService.getAllTodos();
+    public List<Invoice> getAllInvoices() {
+        return invoiceService.getAllInvoices();
+    }
+
+    @GetMapping("/{id}")
+    public Invoice getInvoiceById(@PathVariable Long id) {
+        return invoiceService.getInvoiceById(id);
     }
 
     /**
-     * Create todo - Routes through approval workflow if needed
-     * POST /api/todos?requesterId={userId}
+     * Create invoice - Routes through approval workflow if needed
+     * POST /api/invoices?requesterId={userId}
      */
     @PostMapping
-    public ResponseEntity<?> createTodo(
-            @RequestBody Todo todo,
+    public ResponseEntity<?> createInvoice(
+            @RequestBody Invoice invoice,
             @RequestParam Long requesterId
     ) {
         try {
-            // Convert todo to data map
-            Map<String, Object> data = todoToMap(todo);
+            // Convert invoice to data map
+            Map<String, Object> data = invoiceToMap(invoice);
 
             // Check if approval is required
-            if (approvalWorkflowService.requiresApproval("TODO", RequestOperation.CREATE, data)) {
+            if (approvalWorkflowService.requiresApproval("INVOICE", RequestOperation.CREATE, data)) {
                 // Create approval request
                 ApprovalRequest request = approvalWorkflowService.createApprovalRequest(
-                        "TODO",
+                        "INVOICE",
                         null,  // No target ID for CREATE
                         RequestOperation.CREATE,
                         data,
                         requesterId
                 );
 
-                logger.info("Todo creation requires approval. Request ID: {}", request.getId());
+                logger.info("Invoice creation requires approval. Request ID: {}", request.getId());
                 return ResponseEntity.status(HttpStatus.ACCEPTED)
                         .body(Map.of(
-                                "message", "Todo creation requires approval",
+                                "message", "Invoice creation requires approval",
                                 "approvalRequest", ApprovalRequestResponseDTO.fromEntity(request, objectMapper)
                         ));
             }
 
             // No approval needed - execute immediately
-            Todo created = todoService.createTodo(todo);
-            logger.info("Todo created immediately (no approval required): {}", created.getId());
+            Invoice created = invoiceService.createInvoice(invoice);
+            logger.info("Invoice created immediately (no approval required): {}", created.getId());
             return ResponseEntity.status(HttpStatus.CREATED).body(created);
 
         } catch (IllegalStateException e) {
             return ResponseEntity.status(HttpStatus.CONFLICT)
                     .body(Map.of("error", e.getMessage()));
         } catch (Exception e) {
-            logger.error("Error creating todo", e);
+            logger.error("Error creating invoice", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", "Failed to create todo: " + e.getMessage()));
+                    .body(Map.of("error", "Failed to create invoice: " + e.getMessage()));
         }
     }
 
     /**
-     * Update todo - Routes through approval workflow if needed
-     * PUT /api/todos/{id}?requesterId={userId}
+     * Update invoice - Routes through approval workflow if needed
+     * PUT /api/invoices/{id}?requesterId={userId}
      */
     @PutMapping("/{id}")
-    public ResponseEntity<?> updateTodo(
+    public ResponseEntity<?> updateInvoice(
             @PathVariable Long id,
-            @RequestBody Todo todo,
+            @RequestBody Invoice invoice,
             @RequestParam Long requesterId
     ) {
         try {
-            // Convert updated todo to data map
-            Map<String, Object> data = todoToMap(todo);
+            // Check if invoice exists
+            Invoice existingInvoice = invoiceService.getInvoiceById(id);
+
+            // Convert updated invoice to data map
+            Map<String, Object> data = invoiceToMap(invoice);
 
             // Check if approval is required
-            if (approvalWorkflowService.requiresApproval("TODO", RequestOperation.UPDATE, data)) {
+            if (approvalWorkflowService.requiresApproval("INVOICE", RequestOperation.UPDATE, data)) {
                 // Create approval request
                 ApprovalRequest request = approvalWorkflowService.createApprovalRequest(
-                        "TODO",
+                        "INVOICE",
                         id,
                         RequestOperation.UPDATE,
                         data,
                         requesterId
                 );
 
-                logger.info("Todo update requires approval. Request ID: {}", request.getId());
+                logger.info("Invoice update requires approval. Request ID: {}", request.getId());
                 return ResponseEntity.status(HttpStatus.ACCEPTED)
                         .body(Map.of(
-                                "message", "Todo update requires approval",
+                                "message", "Invoice update requires approval",
                                 "approvalRequest", ApprovalRequestResponseDTO.fromEntity(request, objectMapper)
                         ));
             }
 
             // No approval needed - execute immediately
-            Todo updated = todoService.updateTodo(id, todo);
-            logger.info("Todo updated immediately (no approval required): {}", id);
+            Invoice updated = invoiceService.updateInvoice(id, invoice);
+            logger.info("Invoice updated immediately (no approval required): {}", id);
             return ResponseEntity.ok(updated);
 
         } catch (IllegalStateException e) {
             return ResponseEntity.status(HttpStatus.CONFLICT)
                     .body(Map.of("error", e.getMessage()));
         } catch (Exception e) {
-            logger.error("Error updating todo", e);
+            logger.error("Error updating invoice", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", "Failed to update todo: " + e.getMessage()));
+                    .body(Map.of("error", "Failed to update invoice: " + e.getMessage()));
         }
     }
 
     /**
-     * Delete todo - Routes through approval workflow if needed
-     * DELETE /api/todos/{id}?requesterId={userId}
+     * Delete invoice - Routes through approval workflow if needed
+     * DELETE /api/invoices/{id}?requesterId={userId}
      */
     @DeleteMapping("/{id}")
-    public ResponseEntity<?> deleteTodo(
+    public ResponseEntity<?> deleteInvoice(
             @PathVariable Long id,
             @RequestParam Long requesterId
     ) {
         try {
+            // Check if invoice exists
+            Invoice existingInvoice = invoiceService.getInvoiceById(id);
+
             // Empty data for delete
             Map<String, Object> data = new HashMap<>();
 
             // Check if approval is required
-            if (approvalWorkflowService.requiresApproval("TODO", RequestOperation.DELETE, data)) {
+            if (approvalWorkflowService.requiresApproval("INVOICE", RequestOperation.DELETE, data)) {
                 // Create approval request
                 ApprovalRequest request = approvalWorkflowService.createApprovalRequest(
-                        "TODO",
+                        "INVOICE",
                         id,
                         RequestOperation.DELETE,
                         data,
                         requesterId
                 );
 
-                logger.info("Todo deletion requires approval. Request ID: {}", request.getId());
+                logger.info("Invoice deletion requires approval. Request ID: {}", request.getId());
                 return ResponseEntity.status(HttpStatus.ACCEPTED)
                         .body(Map.of(
-                                "message", "Todo deletion requires approval",
+                                "message", "Invoice deletion requires approval",
                                 "approvalRequest", ApprovalRequestResponseDTO.fromEntity(request, objectMapper)
                         ));
             }
 
             // No approval needed - execute immediately
-            todoService.deleteTodo(id);
-            logger.info("Todo deleted immediately (no approval required): {}", id);
+            invoiceService.deleteInvoice(id);
+            logger.info("Invoice deleted immediately (no approval required): {}", id);
             return ResponseEntity.noContent().build();
 
         } catch (IllegalStateException e) {
             return ResponseEntity.status(HttpStatus.CONFLICT)
                     .body(Map.of("error", e.getMessage()));
         } catch (Exception e) {
-            logger.error("Error deleting todo", e);
+            logger.error("Error deleting invoice", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", "Failed to delete todo: " + e.getMessage()));
+                    .body(Map.of("error", "Failed to delete invoice: " + e.getMessage()));
         }
     }
 
-    // Helper method to convert Todo to Map
-    private Map<String, Object> todoToMap(Todo todo) {
+    // Helper method to convert Invoice to Map
+    private Map<String, Object> invoiceToMap(Invoice invoice) {
         Map<String, Object> data = new HashMap<>();
-        if (todo.getTitle() != null) data.put("title", todo.getTitle());
-        if (todo.getDescription() != null) data.put("description", todo.getDescription());
-        if (todo.getLevel() != null) data.put("level", todo.getLevel().toString());
-        data.put("completed", todo.isCompleted());
-        if (todo.getUser() != null && todo.getUser().getId() != null) {
-            data.put("userId", todo.getUser().getId());
+        if (invoice.getInvoiceId() != null) data.put("invoiceId", invoice.getInvoiceId().toString());
+        if (invoice.getAmount() != null) data.put("amount", invoice.getAmount());
+        if (invoice.getStatus() != null) data.put("status", invoice.getStatus().toString());
+        if (invoice.getLevel() != null) data.put("level", invoice.getLevel().toString());
+        if (invoice.getUser() != null && invoice.getUser().getId() != null) {
+            data.put("userId", invoice.getUser().getId());
         }
         return data;
     }
