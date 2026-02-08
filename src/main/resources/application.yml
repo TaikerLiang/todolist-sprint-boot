@@ -27,3 +27,13 @@ snapadmin:
   enabled: true
   baseUrl: admin
   modelsPackage: com.example.todolist.model
+
+jwt:
+  access:
+    secret: ${JWT_ACCESS_SECRET}
+    expiration: 900 # 15 minutes in seconds
+  refresh:
+    secret: ${JWT_REFRESH_SECRET}
+    expiration: 1209600 # 14 days in seconds
+    grace-period: 30 # 30 seconds for rotation tolerance
+  issuer: todolist-api
