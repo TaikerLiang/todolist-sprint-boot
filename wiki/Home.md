@@ -17,6 +17,7 @@ Welcome to the Todo List API documentation wiki! This wiki contains technical do
 ### Authentication & Security
 - [JWT Authentication Overview](JWT-Authentication-Overview.md)
 - [**Why Multiple Refresh Tokens?**](Why-Multiple-Refresh-Tokens.md) ⭐ **Start here!**
+- [Spring Security Filter Chain](Spring-Security-Filter-Chain.md) - How requests are processed
 - [Token Rotation & Security](Token-Rotation-Security.md)
 - [Session Management](Session-Management.md)
 
