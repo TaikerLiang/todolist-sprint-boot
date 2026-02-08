@@ -1,0 +1,525 @@
+openapi: 3.0.3
+info:
+  title: Todo List API - Authentication
+  description: JWT-based authentication endpoints for the Todo List API
+  version: 1.0.0
+  contact:
+    name: Todo List API Team
+
+servers:
+  - url: http://localhost:8080
+    description: Development server
+  - url: https://api.todolist.example.com
+    description: Production server
+
+tags:
+  - name: Authentication
+    description: User authentication and token management
+  - name: Session Management
+    description: Multi-device session management
+
+paths:
+  /api/auth/login:
+    post:
+      tags:
+        - Authentication
+      summary: Authenticate user and obtain tokens
+      description: |
+        Authenticates a user with username (password optional in MVP) and returns
+        access token (15 min) and refresh token (14 days).
+
+        **MVP Note**: Password field is accepted but ignored. Username-only authentication
+        is used for development/testing. Production will require passwords.
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            examples:
+              usernameOnly:
+                summary: Username-only authentication (MVP)
+                value:
+                  username: johndoe
+              withPassword:
+                summary: With password (future)
+                value:
+                  username: johndoe
+                  password: secret123
+      responses:
+        '200':
+          description: Successfully authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+              example:
+                accessToken: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                refreshToken: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                tokenType: Bearer
+                expiresIn: 900
+                username: johndoe
+                role: USER
+        '400':
+          description: Bad request (missing username)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: Bad Request
+                message: Username is required
+                timestamp: 2026-02-08T10:30:00Z
+                path: /api/auth/login
+        '401':
+          description: Authentication failed (user not found)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: Unauthorized
+                message: User not found
+                timestamp: 2026-02-08T10:30:00Z
+                path: /api/auth/login
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/auth/refresh:
+    post:
+      tags:
+        - Authentication
+      summary: Refresh access token
+      description: |
+        Uses a valid refresh token to obtain a new access token and rotated refresh token.
+
+        **Token Rotation**: Both access and refresh tokens are regenerated. Old refresh token
+        becomes invalid after 30-second grace period.
+
+        **Reuse Detection**: Using a token after grace period triggers automatic revocation
+        of entire token family and forces re-authentication.
+      operationId: refreshToken
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+            example:
+              refreshToken: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+      responses:
+        '200':
+          description: Successfully refreshed tokens
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RefreshResponse'
+              example:
+                accessToken: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                refreshToken: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                tokenType: Bearer
+                expiresIn: 900
+        '400':
+          description: Bad request (missing or malformed token)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: Bad Request
+                message: Refresh token is required
+                timestamp: 2026-02-08T10:30:00Z
+                path: /api/auth/refresh
+        '401':
+          description: Invalid, expired, or revoked refresh token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                expired:
+                  summary: Token expired
+                  value:
+                    error: Unauthorized
+                    message: Refresh token expired
+                    timestamp: 2026-02-08T10:30:00Z
+                    path: /api/auth/refresh
+                revoked:
+                  summary: Token revoked (reuse detected)
+                  value:
+                    error: Unauthorized
+                    message: Refresh token revoked due to suspicious activity
+                    timestamp: 2026-02-08T10:30:00Z
+                    path: /api/auth/refresh
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/auth/logout:
+    post:
+      tags:
+        - Authentication
+      summary: Logout and revoke refresh token
+      description: |
+        Revokes the current refresh token, effectively logging out the user from this device.
+        Access tokens remain valid until expiration (15 minutes) but cannot be refreshed.
+
+        **Multi-Device**: Only revokes the specific refresh token, not all user sessions.
+        Use DELETE /api/auth/sessions to logout from all devices.
+      operationId: logout
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+            example:
+              refreshToken: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+      responses:
+        '200':
+          description: Successfully logged out
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Successfully logged out
+        '400':
+          description: Bad request (missing token)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Invalid or expired access token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/auth/sessions:
+    get:
+      tags:
+        - Session Management
+      summary: List active sessions
+      description: |
+        Returns all active refresh tokens (sessions) for the authenticated user.
+        Useful for showing "where you're logged in" and managing devices.
+      operationId: listSessions
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of active sessions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SessionInfo'
+              example:
+                - sessionId: 42
+                  deviceInfo: Chrome/119.0 192.168.1.100
+                  createdAt: 2026-02-08T10:30:00Z
+                  expiresAt: 2026-02-22T10:30:00Z
+                  isCurrentSession: true
+                - sessionId: 41
+                  deviceInfo: Safari/17.0 192.168.1.101
+                  createdAt: 2026-02-07T15:20:00Z
+                  expiresAt: 2026-02-21T15:20:00Z
+                  isCurrentSession: false
+        '401':
+          description: Invalid or expired access token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    delete:
+      tags:
+        - Session Management
+      summary: Logout from all devices
+      description: |
+        Revokes all refresh tokens for the authenticated user, forcing re-authentication
+        on all devices. Access tokens remain valid until expiration (15 minutes).
+      operationId: logoutAllDevices
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Successfully logged out from all devices
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Logged out from all devices
+                  sessionsRevoked:
+                    type: integer
+                    example: 3
+        '401':
+          description: Invalid or expired access token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/auth/sessions/{sessionId}:
+    delete:
+      tags:
+        - Session Management
+      summary: Logout from specific device
+      description: |
+        Revokes a specific refresh token by session ID, logging out from that device only.
+        Users cannot revoke other users' sessions (only their own).
+      operationId: logoutDevice
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: Refresh token ID (session ID)
+          example: 42
+      responses:
+        '200':
+          description: Successfully logged out from device
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Session revoked successfully
+        '401':
+          description: Invalid or expired access token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden (trying to revoke another user's session)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: Forbidden
+                message: You can only revoke your own sessions
+                timestamp: 2026-02-08T10:30:00Z
+                path: /api/auth/sessions/99
+        '404':
+          description: Session not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: Not Found
+                message: Session not found
+                timestamp: 2026-02-08T10:30:00Z
+                path: /api/auth/sessions/99
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        JWT access token obtained from /api/auth/login or /api/auth/refresh.
+        Include in Authorization header: Authorization: Bearer <token>
+
+  schemas:
+    LoginRequest:
+      type: object
+      required:
+        - username
+      properties:
+        username:
+          type: string
+          minLength: 3
+          maxLength: 50
+          description: Username for authentication
+          example: johndoe
+        password:
+          type: string
+          maxLength: 100
+          description: Password (optional in MVP, will be required in production)
+          example: secret123
+
+    LoginResponse:
+      type: object
+      required:
+        - accessToken
+        - refreshToken
+        - tokenType
+        - expiresIn
+        - username
+        - role
+      properties:
+        accessToken:
+          type: string
+          description: Short-lived JWT access token (15 minutes)
+          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        refreshToken:
+          type: string
+          description: Long-lived JWT refresh token (14 days)
+          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        tokenType:
+          type: string
+          enum: [Bearer]
+          description: Token type for Authorization header
+          example: Bearer
+        expiresIn:
+          type: integer
+          format: int64
+          description: Access token expiration in seconds (900 = 15 minutes)
+          example: 900
+        username:
+          type: string
+          description: Authenticated username
+          example: johndoe
+        role:
+          type: string
+          enum: [ADMIN, MANAGER, USER]
+          description: User role
+          example: USER
+
+    RefreshRequest:
+      type: object
+      required:
+        - refreshToken
+      properties:
+        refreshToken:
+          type: string
+          description: Current refresh token
+          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+
+    RefreshResponse:
+      type: object
+      required:
+        - accessToken
+        - refreshToken
+        - tokenType
+        - expiresIn
+      properties:
+        accessToken:
+          type: string
+          description: New short-lived JWT access token (15 minutes)
+          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        refreshToken:
+          type: string
+          description: New long-lived JWT refresh token (14 days) - rotated
+          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        tokenType:
+          type: string
+          enum: [Bearer]
+          description: Token type for Authorization header
+          example: Bearer
+        expiresIn:
+          type: integer
+          format: int64
+          description: Access token expiration in seconds (900 = 15 minutes)
+          example: 900
+
+    SessionInfo:
+      type: object
+      required:
+        - sessionId
+        - deviceInfo
+        - createdAt
+        - expiresAt
+        - isCurrentSession
+      properties:
+        sessionId:
+          type: integer
+          format: int64
+          description: Refresh token ID
+          example: 42
+        deviceInfo:
+          type: string
+          description: User agent and IP address
+          example: Chrome/119.0 192.168.1.100
+        createdAt:
+          type: string
+          format: date-time
+          description: Session creation timestamp (ISO-8601)
+          example: 2026-02-08T10:30:00Z
+        expiresAt:
+          type: string
+          format: date-time
+          description: Session expiration timestamp (ISO-8601)
+          example: 2026-02-22T10:30:00Z
+        isCurrentSession:
+          type: boolean
+          description: True if this is the requesting session
+          example: true
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+        - message
+        - timestamp
+        - path
+      properties:
+        error:
+          type: string
+          description: Error type (HTTP status text)
+          example: Unauthorized
+        message:
+          type: string
+          description: Human-readable error message
+          example: Invalid credentials
+        timestamp:
+          type: string
+          format: date-time
+          description: Error timestamp (ISO-8601)
+          example: 2026-02-08T10:30:00Z
+        path:
+          type: string
+          description: Request path that caused the error
+          example: /api/auth/login

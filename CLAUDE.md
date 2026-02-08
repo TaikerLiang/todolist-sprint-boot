@@ -644,3 +644,9 @@ todolist/
 - [ ] Database schema migrated (`make migrate`)
 - [ ] Application runs (`make run`)
 - [ ] SnapAdmin accessible at `http://localhost:8080/admin`
+
+## Active Technologies
+- PostgreSQL (existing), new RefreshToken table via Liquibase migration (001-jwt-api-auth)
+
+## Recent Changes
+- 001-jwt-api-auth: Added Java 21

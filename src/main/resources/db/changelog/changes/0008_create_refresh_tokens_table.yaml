@@ -1,0 +1,120 @@
+databaseChangeLog:
+  - changeSet:
+      id: 0008-create-refresh-tokens-table
+      author: system
+      changes:
+        - createTable:
+            tableName: refresh_tokens
+            columns:
+              - column:
+                  name: id
+                  type: BIGINT
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+
+              - column:
+                  name: user_id
+                  type: BIGINT
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_refresh_token_user
+                    references: users(id)
+
+              - column:
+                  name: token_hash
+                  type: VARCHAR(64)
+                  constraints:
+                    nullable: false
+                    unique: true
+
+              - column:
+                  name: jti
+                  type: VARCHAR(36)
+                  constraints:
+                    nullable: false
+                    unique: true
+
+              - column:
+                  name: token_family_id
+                  type: VARCHAR(36)
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: expires_at
+                  type: TIMESTAMP WITH TIME ZONE
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: valid_until
+                  type: TIMESTAMP WITH TIME ZONE
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: created_at
+                  type: TIMESTAMP WITH TIME ZONE
+                  defaultValueComputed: CURRENT_TIMESTAMP
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: replaced_at
+                  type: TIMESTAMP WITH TIME ZONE
+
+              - column:
+                  name: replaced_by_jti
+                  type: VARCHAR(36)
+
+              - column:
+                  name: device_info
+                  type: VARCHAR(255)
+
+              - column:
+                  name: revoked
+                  type: BOOLEAN
+                  defaultValueBoolean: false
+                  constraints:
+                    nullable: false
+
+        - createIndex:
+            tableName: refresh_tokens
+            indexName: idx_refresh_token_user_id
+            columns:
+              - column:
+                  name: user_id
+
+        - createIndex:
+            tableName: refresh_tokens
+            indexName: idx_refresh_token_family_id
+            columns:
+              - column:
+                  name: token_family_id
+
+        - createIndex:
+            tableName: refresh_tokens
+            indexName: idx_refresh_token_expires_at
+            columns:
+              - column:
+                  name: expires_at
+
+        - createIndex:
+            tableName: refresh_tokens
+            indexName: idx_refresh_token_active_sessions
+            columns:
+              - column:
+                  name: user_id
+              - column:
+                  name: revoked
+              - column:
+                  name: expires_at
+
+  - changeSet:
+      id: tag-0008
+      author: system
+      changes:
+        - tagDatabase:
+            tag: "0008"
