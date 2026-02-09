@@ -1,0 +1,552 @@
+openapi: 3.0.3
+info:
+  title: Audit Log API
+  description: |
+    RESTful API for querying audit logs of entity changes (create, update, delete operations).
+
+    **Access**: Admin-only - requires ADMIN role
+
+    **Features**:
+    - View complete audit history for any entity
+    - Filter by entity type, user, date range, and operation type
+    - Field-level change tracking with before/after values
+    - Support for deleted entities (query by entity ID even after deletion)
+  version: 1.0.0
+  contact:
+    name: Todo List API Team
+
+servers:
+  - url: http://localhost:8080/api
+    description: Local development server
+  - url: https://api.example.com/api
+    description: Production server
+
+tags:
+  - name: Audit Logs
+    description: Query audit trail for entity changes
+
+security:
+  - BearerAuth: []
+
+paths:
+  /audit-logs:
+    get:
+      summary: List audit logs with filtering
+      description: |
+        Retrieve audit log entries with optional filtering by entity type, entity ID,
+        user, date range, and operation type. Results are paginated and sorted by
+        timestamp (most recent first).
+
+        **Performance**: Queries return within 5 seconds for datasets of 10,000+ entries.
+      operationId: getAuditLogs
+      tags:
+        - Audit Logs
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: entityType
+          in: query
+          description: Filter by entity type (e.g., Todo, Invoice, User)
+          required: false
+          schema:
+            type: string
+            example: Todo
+        - name: entityId
+          in: query
+          description: Filter by specific entity ID
+          required: false
+          schema:
+            type: integer
+            format: int64
+            example: 42
+        - name: createdBy
+          in: query
+          description: Filter by username who made the change
+          required: false
+          schema:
+            type: string
+            example: admin@example.com
+        - name: operation
+          in: query
+          description: Filter by operation type
+          required: false
+          schema:
+            type: string
+            enum: [INSERT, UPDATE, DELETE]
+            example: UPDATE
+        - name: startDate
+          in: query
+          description: Filter by start date (ISO 8601 format, inclusive)
+          required: false
+          schema:
+            type: string
+            format: date-time
+            example: "2026-02-01T00:00:00Z"
+        - name: endDate
+          in: query
+          description: Filter by end date (ISO 8601 format, exclusive)
+          required: false
+          schema:
+            type: string
+            format: date-time
+            example: "2026-03-01T00:00:00Z"
+        - name: page
+          in: query
+          description: Page number (0-indexed)
+          required: false
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+            example: 0
+        - name: size
+          in: query
+          description: Page size (number of results per page)
+          required: false
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+            example: 20
+        - name: sort
+          in: query
+          description: Sort field and direction (e.g., "changedAt,desc")
+          required: false
+          schema:
+            type: string
+            default: "changedAt,desc"
+            example: "changedAt,desc"
+      responses:
+        '200':
+          description: Successful response with paginated audit logs
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  content:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AuditLogResponse'
+                  pageable:
+                    $ref: '#/components/schemas/Pageable'
+                  totalElements:
+                    type: integer
+                    format: int64
+                    description: Total number of audit entries matching filters
+                    example: 150
+                  totalPages:
+                    type: integer
+                    description: Total number of pages
+                    example: 8
+                  last:
+                    type: boolean
+                    description: Whether this is the last page
+                    example: false
+                  size:
+                    type: integer
+                    description: Page size
+                    example: 20
+                  number:
+                    type: integer
+                    description: Current page number (0-indexed)
+                    example: 0
+                  first:
+                    type: boolean
+                    description: Whether this is the first page
+                    example: true
+                  numberOfElements:
+                    type: integer
+                    description: Number of elements in current page
+                    example: 20
+                  empty:
+                    type: boolean
+                    description: Whether the page is empty
+                    example: false
+              examples:
+                todoUpdates:
+                  summary: Todo update history
+                  value:
+                    content:
+                      - id: 1002
+                        entityType: Todo
+                        entityId: 42
+                        operation: UPDATE
+                        changedBy: user@example.com
+                        changedAt: "2026-02-09T16:45:00Z"
+                        changes:
+                          title:
+                            old: "Buy groceries"
+                            new: "Buy groceries and cook dinner"
+                          level:
+                            old: "LOW"
+                            new: "HIGH"
+                        entityDescription: "Buy groceries and cook dinner"
+                      - id: 1001
+                        entityType: Todo
+                        entityId: 42
+                        operation: INSERT
+                        changedBy: user@example.com
+                        changedAt: "2026-02-09T15:30:00Z"
+                        changes: null
+                        entityDescription: "Buy groceries"
+                    totalElements: 2
+                    totalPages: 1
+                    size: 20
+                    number: 0
+                    first: true
+                    last: true
+                    numberOfElements: 2
+                    empty: false
+        '400':
+          description: Bad request - invalid query parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                timestamp: "2026-02-09T17:00:00Z"
+                status: 400
+                error: "Bad Request"
+                message: "Invalid date format for startDate parameter"
+                path: "/api/audit-logs"
+        '401':
+          description: Unauthorized - missing or invalid authentication token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden - user does not have ADMIN role
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /audit-logs/{id}:
+    get:
+      summary: Get audit log entry by ID
+      description: Retrieve a specific audit log entry by its unique ID
+      operationId: getAuditLogById
+      tags:
+        - Audit Logs
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          description: Audit log entry ID
+          required: true
+          schema:
+            type: integer
+            format: int64
+            example: 1002
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditLogResponse'
+              example:
+                id: 1002
+                entityType: Todo
+                entityId: 42
+                operation: UPDATE
+                changedBy: user@example.com
+                changedAt: "2026-02-09T16:45:00Z"
+                changes:
+                  title:
+                    old: "Buy groceries"
+                    new: "Buy groceries and cook dinner"
+                  level:
+                    old: "LOW"
+                    new: "HIGH"
+                entityDescription: "Buy groceries and cook dinner"
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden - requires ADMIN role
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Audit log entry not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /audit-logs/entity/{entityType}/{entityId}:
+    get:
+      summary: Get audit history for a specific entity
+      description: |
+        Retrieve the complete audit history for a specific entity by type and ID.
+        This works even if the entity has been deleted.
+
+        Results are sorted by timestamp in descending order (most recent first).
+      operationId: getAuditHistoryForEntity
+      tags:
+        - Audit Logs
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: entityType
+          in: path
+          description: Entity type (e.g., Todo, Invoice, User)
+          required: true
+          schema:
+            type: string
+            example: Todo
+        - name: entityId
+          in: path
+          description: Entity ID
+          required: true
+          schema:
+            type: integer
+            format: int64
+            example: 42
+        - name: page
+          in: query
+          description: Page number (0-indexed)
+          required: false
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+        - name: size
+          in: query
+          description: Page size
+          required: false
+          schema:
+            type: integer
+            default: 50
+            minimum: 1
+            maximum: 100
+      responses:
+        '200':
+          description: Successful response with entity audit history
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  content:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AuditLogResponse'
+                  pageable:
+                    $ref: '#/components/schemas/Pageable'
+                  totalElements:
+                    type: integer
+                    format: int64
+                  totalPages:
+                    type: integer
+                  last:
+                    type: boolean
+                  size:
+                    type: integer
+                  number:
+                    type: integer
+                  first:
+                    type: boolean
+                  numberOfElements:
+                    type: integer
+                  empty:
+                    type: boolean
+        '400':
+          description: Bad request - invalid entity type or ID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden - requires ADMIN role
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: No audit history found for this entity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token obtained from /api/auth/login endpoint
+
+  schemas:
+    AuditLogResponse:
+      type: object
+      description: Audit log entry representing a single entity change
+      required:
+        - id
+        - entityType
+        - entityId
+        - operation
+        - createdAt
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique audit log entry UUID
+          example: "550e8400-e29b-41d4-a716-446655440002"
+        entityType:
+          type: string
+          description: Type of entity that was changed
+          example: Todo
+        entityId:
+          type: integer
+          format: int64
+          description: ID of the entity that was changed
+          example: 42
+        operation:
+          type: string
+          description: Operation type
+          enum: [INSERT, UPDATE, DELETE]
+          example: UPDATE
+        createdBy:
+          type: string
+          nullable: true
+          description: Username of person who made the change (matches User.username); null for system operations
+          example: user@example.com
+        createdAt:
+          type: string
+          format: date-time
+          description: Timestamp when audit entry was created (UTC)
+          example: "2026-02-09T16:45:00Z"
+        changes:
+          type: object
+          nullable: true
+          description: |
+            Field-level changes with before/after values.
+            Structure: {"fieldName": {"old": value, "new": value}}
+            Null for INSERT operations (no "before" state).
+          additionalProperties:
+            $ref: '#/components/schemas/FieldChange'
+          example:
+            title:
+              old: "Buy groceries"
+              new: "Buy groceries and cook dinner"
+            level:
+              old: "LOW"
+              new: "HIGH"
+        requestId:
+          type: string
+          format: uuid
+          nullable: true
+          description: UUID of API request that triggered this audit entry (for correlation and tracing)
+          example: "650e8400-e29b-41d4-a716-446655440011"
+
+    FieldChange:
+      type: object
+      description: Before and after values for a single field that changed
+      properties:
+        old:
+          description: Original value before the change (null if field was unset)
+          example: "LOW"
+        new:
+          description: New value after the change (null if field was cleared)
+          example: "HIGH"
+
+    Pageable:
+      type: object
+      description: Pagination information
+      properties:
+        pageNumber:
+          type: integer
+          description: Current page number (0-indexed)
+          example: 0
+        pageSize:
+          type: integer
+          description: Page size
+          example: 20
+        sort:
+          type: object
+          properties:
+            sorted:
+              type: boolean
+              example: true
+            unsorted:
+              type: boolean
+              example: false
+        offset:
+          type: integer
+          description: Offset of the first element in the page
+          example: 0
+        paged:
+          type: boolean
+          example: true
+        unpaged:
+          type: boolean
+          example: false
+
+    ErrorResponse:
+      type: object
+      description: Standard error response format
+      required:
+        - timestamp
+        - status
+        - error
+        - path
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+          description: Timestamp when error occurred
+          example: "2026-02-09T17:00:00Z"
+        status:
+          type: integer
+          description: HTTP status code
+          example: 400
+        error:
+          type: string
+          description: HTTP status text
+          example: "Bad Request"
+        message:
+          type: string
+          description: Detailed error message
+          example: "Invalid date format for startDate parameter"
+        path:
+          type: string
+          description: API path where error occurred
+          example: "/api/audit-logs"
+        trace:
+          type: string
+          description: Stack trace (only in development mode)

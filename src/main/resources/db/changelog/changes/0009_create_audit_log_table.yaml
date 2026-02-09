@@ -1,0 +1,129 @@
+databaseChangeLog:
+- changeSet:
+    id: 0009-1-create-audit-log-table
+    author: taiker
+    changes:
+    - createTable:
+        tableName: audit_log
+        columns:
+        - column:
+            name: id
+            type: UUID
+            constraints:
+              nullable: false
+              primaryKey: true
+              primaryKeyName: audit_logPK
+            defaultValueComputed: gen_random_uuid()
+        - column:
+            name: entity_type
+            type: VARCHAR(50)
+            constraints:
+              nullable: false
+        - column:
+            name: entity_id
+            type: BIGINT
+            constraints:
+              nullable: false
+        - column:
+            name: operation
+            type: VARCHAR(10)
+            constraints:
+              nullable: false
+        - column:
+            name: created_by
+            type: VARCHAR(100)
+        - column:
+            name: created_at
+            type: TIMESTAMP WITH TIME ZONE
+            constraints:
+              nullable: false
+            defaultValueComputed: CURRENT_TIMESTAMP
+        - column:
+            name: changes
+            type: JSONB
+        - column:
+            name: request_id
+            type: UUID
+
+- changeSet:
+    id: 0009-2-create-indexes
+    author: taiker
+    changes:
+    - createIndex:
+        indexName: idx_audit_entity
+        tableName: audit_log
+        columns:
+        - column:
+            name: entity_type
+        - column:
+            name: entity_id
+        - column:
+            name: created_at
+            descending: true
+    - createIndex:
+        indexName: idx_audit_time
+        tableName: audit_log
+        columns:
+        - column:
+            name: created_at
+    - createIndex:
+        indexName: idx_audit_user
+        tableName: audit_log
+        columns:
+        - column:
+            name: created_by
+        - column:
+            name: created_at
+            descending: true
+    - createIndex:
+        indexName: idx_audit_operation
+        tableName: audit_log
+        columns:
+        - column:
+            name: operation
+        - column:
+            name: created_at
+            descending: true
+
+- changeSet:
+    id: 0009-3-create-request-id-index
+    author: taiker
+    changes:
+    - sql:
+        sql: CREATE INDEX idx_audit_request ON audit_log (request_id) WHERE request_id IS NOT NULL;
+    rollback:
+    - sql:
+        sql: DROP INDEX IF EXISTS idx_audit_request;
+
+- changeSet:
+    id: 0009-4-create-immutability-trigger
+    author: taiker
+    changes:
+    - sql:
+        endDelimiter: ";"
+        splitStatements: false
+        sql: >
+          CREATE OR REPLACE FUNCTION prevent_audit_modification()
+          RETURNS TRIGGER AS $func$
+          BEGIN
+              RAISE EXCEPTION 'Audit records are immutable and cannot be modified or deleted';
+          END;
+          $func$ LANGUAGE plpgsql
+    - sql:
+        sql: >
+          CREATE TRIGGER audit_log_immutable
+              BEFORE UPDATE OR DELETE ON audit_log
+              FOR EACH ROW
+              EXECUTE FUNCTION prevent_audit_modification()
+    rollback:
+    - sql:
+        sql: DROP TRIGGER IF EXISTS audit_log_immutable ON audit_log
+    - sql:
+        sql: DROP FUNCTION IF EXISTS prevent_audit_modification()
+
+- changeSet:
+    id: tag-0009
+    author: taiker
+    changes:
+    - tagDatabase:
+        tag: "0009"
