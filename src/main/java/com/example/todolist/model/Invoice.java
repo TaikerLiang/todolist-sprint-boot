@@ -1,5 +1,6 @@
 package com.example.todolist.model;
 
+import com.example.todolist.audit.AuditEntityListener;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -11,6 +12,7 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "invoices")
+@EntityListeners(AuditEntityListener.class)
 @Getter
 @Setter
 @NoArgsConstructor
