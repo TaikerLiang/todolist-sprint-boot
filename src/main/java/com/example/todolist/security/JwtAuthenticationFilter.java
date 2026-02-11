@@ -1,6 +1,7 @@
 package com.example.todolist.security;
 
 import com.example.todolist.service.JwtService;
+import com.example.todolist.util.RequestContext;
 import io.jsonwebtoken.Claims;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -50,6 +51,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
                 authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                 SecurityContextHolder.getContext().setAuthentication(authentication);
+
+                // Store user ID in RequestContext for audit logging
+                RequestContext.setUserId(userId.toString());
 
                 log.debug("Authenticated user: {} with role: {}", username, role);
             }
