@@ -1,0 +1,490 @@
+openapi: 3.0.3
+info:
+  title: Admin Audit Log API
+  description: |
+    REST API for querying audit logs of Todo and Invoice changes.
+    Provides complete change history with who/when/what information.
+
+    **Access**: Admin users only (requires ROLE_ADMIN)
+  version: 1.0.0
+  contact:
+    name: Todo List API Team
+
+servers:
+  - url: http://localhost:8080/api
+    description: Local development server
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: Audit Logs
+    description: Query audit trail for entity changes
+
+paths:
+  /audit/todos/{id}/history:
+    get:
+      tags:
+        - Audit Logs
+      summary: Get audit history for a specific Todo
+      description: |
+        Returns complete change history for a Todo item, including all
+        CREATE, UPDATE, and DELETE operations. History is preserved even
+        if the Todo has been deleted.
+      operationId: getTodoAuditHistory
+      parameters:
+        - $ref: '#/components/parameters/EntityIdPath'
+        - $ref: '#/components/parameters/PageNumber'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: Audit history retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditHistoryResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: Todo not found (no audit history exists)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /audit/invoices/{id}/history:
+    get:
+      tags:
+        - Audit Logs
+      summary: Get audit history for a specific Invoice
+      description: |
+        Returns complete change history for an Invoice item, including all
+        CREATE, UPDATE, and DELETE operations.
+      operationId: getInvoiceAuditHistory
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Invoice UUID
+        - $ref: '#/components/parameters/PageNumber'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: Audit history retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditHistoryResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: Invoice not found (no audit history exists)
+
+  /audit/search:
+    get:
+      tags:
+        - Audit Logs
+      summary: Search and filter audit logs
+      description: |
+        Search audit logs across all entities (Todos and Invoices) with
+        flexible filtering by user, date range, entity type, operation type,
+        and request ID.
+      operationId: searchAuditLogs
+      parameters:
+        - name: entityType
+          in: query
+          schema:
+            type: string
+            enum: [Todo, Invoice]
+          description: Filter by entity type
+        - name: entityId
+          in: query
+          schema:
+            type: integer
+            format: int64
+          description: Filter by specific entity ID (for Todos) or UUID (for Invoices)
+        - name: username
+          in: query
+          schema:
+            type: string
+          description: Filter by username who made the change
+        - name: operation
+          in: query
+          schema:
+            type: string
+            enum: [CREATE, UPDATE, DELETE]
+          description: Filter by operation type
+        - name: requestId
+          in: query
+          schema:
+            type: string
+            format: uuid
+          description: Filter by request ID (correlate related changes)
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Filter changes after this timestamp (ISO 8601)
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Filter changes before this timestamp (ISO 8601)
+        - $ref: '#/components/parameters/PageNumber'
+        - $ref: '#/components/parameters/PageSize'
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum: [timestamp:desc, timestamp:asc, entity:asc, user:asc]
+            default: timestamp:desc
+          description: Sort order for results
+      responses:
+        '200':
+          description: Search results retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditSearchResponse'
+        '400':
+          description: Invalid query parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /audit/revisions/{revisionNumber}:
+    get:
+      tags:
+        - Audit Logs
+      summary: Get all changes in a specific revision
+      description: |
+        Returns all entity changes that occurred in a single revision
+        (transaction). Useful for understanding the complete scope of
+        a multi-entity operation.
+      operationId: getRevisionDetails
+      parameters:
+        - name: revisionNumber
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Revision number (from audit log entry)
+      responses:
+        '200':
+          description: Revision details retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RevisionDetailsResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: Revision not found
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT access token with ROLE_ADMIN
+
+  parameters:
+    EntityIdPath:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+      description: Entity ID (Todo ID)
+
+    PageNumber:
+      name: page
+      in: query
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
+      description: Page number (0-indexed)
+
+    PageSize:
+      name: size
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+      description: Number of items per page
+
+  schemas:
+    AuditHistoryResponse:
+      type: object
+      required:
+        - entityId
+        - entityType
+        - history
+        - pagination
+      properties:
+        entityId:
+          type: string
+          description: ID of the audited entity
+          example: "123"
+        entityType:
+          type: string
+          enum: [Todo, Invoice]
+          description: Type of entity
+        history:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuditEntry'
+        pagination:
+          $ref: '#/components/schemas/PaginationInfo'
+
+    AuditSearchResponse:
+      type: object
+      required:
+        - results
+        - pagination
+      properties:
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuditEntry'
+        pagination:
+          $ref: '#/components/schemas/PaginationInfo'
+        filters:
+          type: object
+          description: Applied filters (echo back for confirmation)
+          properties:
+            entityType:
+              type: string
+            username:
+              type: string
+            operation:
+              type: string
+            startDate:
+              type: string
+              format: date-time
+            endDate:
+              type: string
+              format: date-time
+
+    AuditEntry:
+      type: object
+      required:
+        - revisionNumber
+        - timestamp
+        - operation
+        - entityType
+        - entityId
+      properties:
+        revisionNumber:
+          type: integer
+          description: Envers revision number
+          example: 42
+        timestamp:
+          type: string
+          format: date-time
+          description: When the change occurred (ISO 8601)
+          example: "2026-02-11T10:30:45.123Z"
+        operation:
+          type: string
+          enum: [CREATE, UPDATE, DELETE]
+          description: Type of operation performed
+        entityType:
+          type: string
+          enum: [Todo, Invoice]
+          description: Type of entity that was changed
+        entityId:
+          type: string
+          description: ID of the changed entity
+          example: "123"
+        username:
+          type: string
+          nullable: true
+          description: Username of the user who made the change
+          example: "john.doe@example.com"
+        requestId:
+          type: string
+          format: uuid
+          nullable: true
+          description: Request ID for correlating related changes
+          example: "a7f3e4d2-1b9c-4e5a-8f2d-1c3b4a5e6f7a"
+        changedFields:
+          type: array
+          description: List of fields that changed (only for UPDATE operations)
+          items:
+            $ref: '#/components/schemas/FieldChange'
+        entitySnapshot:
+          type: object
+          description: Complete state of the entity at this revision
+          additionalProperties: true
+          example:
+            id: 123
+            title: "Complete project documentation"
+            description: "Write comprehensive docs"
+            completed: false
+            priority: "HIGH"
+            userId: 1
+
+    FieldChange:
+      type: object
+      required:
+        - fieldName
+        - oldValue
+        - newValue
+      properties:
+        fieldName:
+          type: string
+          description: Name of the changed field
+          example: "title"
+        oldValue:
+          type: string
+          nullable: true
+          description: Previous value (null for newly created fields)
+          example: "Old title"
+        newValue:
+          type: string
+          nullable: true
+          description: New value (null for deleted fields)
+          example: "New title"
+        fieldType:
+          type: string
+          description: Data type of the field
+          example: "String"
+
+    RevisionDetailsResponse:
+      type: object
+      required:
+        - revisionNumber
+        - timestamp
+        - changes
+      properties:
+        revisionNumber:
+          type: integer
+          example: 42
+        timestamp:
+          type: string
+          format: date-time
+          example: "2026-02-11T10:30:45.123Z"
+        username:
+          type: string
+          nullable: true
+          example: "admin@example.com"
+        requestId:
+          type: string
+          format: uuid
+          nullable: true
+          example: "a7f3e4d2-1b9c-4e5a-8f2d-1c3b4a5e6f7a"
+        changes:
+          type: array
+          description: All entity changes in this revision
+          items:
+            type: object
+            properties:
+              entityType:
+                type: string
+                enum: [Todo, Invoice]
+              entityId:
+                type: string
+              operation:
+                type: string
+                enum: [CREATE, UPDATE, DELETE]
+              entitySnapshot:
+                type: object
+                additionalProperties: true
+
+    PaginationInfo:
+      type: object
+      required:
+        - page
+        - size
+        - totalElements
+        - totalPages
+      properties:
+        page:
+          type: integer
+          description: Current page number (0-indexed)
+          example: 0
+        size:
+          type: integer
+          description: Items per page
+          example: 20
+        totalElements:
+          type: integer
+          description: Total number of items across all pages
+          example: 157
+        totalPages:
+          type: integer
+          description: Total number of pages
+          example: 8
+
+    ErrorResponse:
+      type: object
+      required:
+        - timestamp
+        - status
+        - error
+        - message
+        - path
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        status:
+          type: integer
+          example: 400
+        error:
+          type: string
+          example: "Bad Request"
+        message:
+          type: string
+          example: "Invalid query parameters"
+        path:
+          type: string
+          example: "/api/audit/search"
+
+  responses:
+    Unauthorized:
+      description: Authentication required
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            timestamp: "2026-02-11T10:30:45.123Z"
+            status: 401
+            error: "Unauthorized"
+            message: "Full authentication is required to access this resource"
+            path: "/api/audit/todos/123/history"
+
+    Forbidden:
+      description: Admin access required
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            timestamp: "2026-02-11T10:30:45.123Z"
+            status: 403
+            error: "Forbidden"
+            message: "Access Denied - ROLE_ADMIN required"
+            path: "/api/audit/search"

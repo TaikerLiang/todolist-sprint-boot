@@ -645,8 +645,170 @@ todolist/
 - [ ] Application runs (`make run`)
 - [ ] SnapAdmin accessible at `http://localhost:8080/admin`
 
+## Admin Audit Logging
+
+The application includes comprehensive audit logging for all create, update, and delete operations on Todo and Invoice entities. Administrators can track who made changes, when they occurred, and what specifically changed (before/after field values).
+
+### Features
+
+- **Complete Change History**: View all CREATE, UPDATE, DELETE operations for any item
+- **Field-Level Tracking**: See exactly what changed (before/after values for each field)
+- **Request Correlation**: Group related changes by request ID (transaction tracking)
+- **Search & Filter**: Find changes by user, date range, entity type, or operation
+- **Indefinite Retention**: Audit logs preserved even after entity deletion
+
+### Implementation Details
+
+**Audit Infrastructure:**
+- **Model**: `UserActionLogs` entity with JSONB field changes (table: `admin_portal_user_action_logs`)
+- **Repository**: Custom repository pattern with JPQL queries for flexible searching
+- **Service**: `AuditCaptureService` automatically captures changes via service layer integration
+- **Request Context**: ThreadLocal-based request ID and user ID tracking
+
+**Automatic Audit Capture:**
+- All Todo and Invoice CUD operations automatically generate audit logs
+- Changes tracked via `TodoService` and `InvoiceService` integration
+- Transactional safety: audit write failures roll back business operations
+
+### REST API Endpoints
+
+All endpoints require `ROLE_ADMIN` for access.
+
+**Get Audit History for Specific Item:**
+```bash
+# Get complete change history for Todo ID 123
+GET /api/audit/todos/123/history
+
+# Get complete change history for Invoice ID 456
+GET /api/audit/invoices/456/history
+```
+
+**Search and Filter Audit Logs:**
+```bash
+# Find all changes by specific user
+GET /api/audit/search?username=john@example.com
+
+# Find all changes in date range
+GET /api/audit/search?startDate=2026-02-01T00:00:00Z&endDate=2026-02-11T23:59:59Z
+
+# Find all Todo deletions
+GET /api/audit/search?entityType=Todo&operation=DELETE
+
+# Combine filters with pagination
+GET /api/audit/search?entityType=Invoice&username=admin@example.com&page=0&size=20
+```
+
+**Correlate Related Changes:**
+```bash
+# Get all changes in a single request/transaction
+GET /api/audit/revisions/{requestId}
+```
+
+### Example Response
+
+```json
+{
+  "entityId": "123",
+  "entityType": "Todo",
+  "totalEntries": 3,
+  "history": [
+    {
+      "id": "a7f3e4d2-1b9c-4e5a-8f2d-1c3b4a5e6f7a",
+      "timestamp": "2026-02-11T15:30:00Z",
+      "operation": "DELETE",
+      "entityType": "Todo",
+      "entityId": 123,
+      "username": "admin@example.com",
+      "requestId": "b8e4f5c3-2c0d-5f6b-9e3f-2d4c5b6e7f8b",
+      "changedFields": null
+    },
+    {
+      "id": "c8f5g6d4-3d1e-6g7c-0f4g-3e5d6c7f8g9c",
+      "timestamp": "2026-02-11T15:15:00Z",
+      "operation": "UPDATE",
+      "entityType": "Todo",
+      "entityId": 123,
+      "username": "john@example.com",
+      "requestId": "d9g6h7e5-4e2f-7h8d-1g5h-4f6e7d8g9h0d",
+      "changedFields": [
+        {
+          "fieldName": "title",
+          "oldValue": "Original Title",
+          "newValue": "Updated Title",
+          "fieldType": "String"
+        },
+        {
+          "fieldName": "completed",
+          "oldValue": false,
+          "newValue": true,
+          "fieldType": "Boolean"
+        }
+      ]
+    },
+    {
+      "id": "e0h7i8f6-5f3g-8i9e-2h6i-5g7f8e9h0i1e",
+      "timestamp": "2026-02-11T14:00:00Z",
+      "operation": "CREATE",
+      "entityType": "Todo",
+      "entityId": 123,
+      "username": "john@example.com",
+      "requestId": "f1i8j9g7-6g4h-9j0f-3i7j-6h8g9f0i1j2f",
+      "changedFields": null
+    }
+  ]
+}
+```
+
+### Request Correlation
+
+All changes within a single HTTP request share the same `requestId` for transaction-level tracking:
+
+**Example Scenario:**
+```java
+// User updates multiple Todos in a bulk operation
+// All updates will have the same requestId for correlation
+```
+
+**Correlation Endpoint:**
+```bash
+GET /api/audit/revisions/b8e4f5c3-2c0d-5f6b-9e3f-2d4c5b6e7f8b
+```
+
+Returns all changes (across different entities) that occurred in the same request.
+
+### Database Schema
+
+**Table**: `admin_portal_user_action_logs`
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | UUID | Primary key (auto-generated) |
+| `entity_type` | VARCHAR(50) | Entity type (e.g., "Todo", "Invoice") |
+| `entity_id` | BIGINT | ID of affected entity |
+| `operation` | VARCHAR(10) | Operation type (CREATE/UPDATE/DELETE) |
+| `created_by` | VARCHAR(100) | Username who made the change |
+| `created_at` | TIMESTAMP | When change occurred (UTC) |
+| `changes` | JSONB | Field changes (before/after values) |
+| `request_id` | UUID | Request correlation ID |
+
+**Indexes**: entity_type, request_id, created_by, created_at (for efficient querying)
+
+### Implementation Notes
+
+- Audit logs are **append-only** (no updates or deletes)
+- **Transactional**: Audit writes participate in same transaction as business operations
+- **Field comparison**: Uses reflection-based `EntityComparator` to detect changes
+- **JSONB storage**: Field changes stored efficiently with PostgreSQL JSONB + hypersistence-utils
+- **Request tracking**: Automatic via `RequestCorrelationFilter` (MDC + ThreadLocal)
+
+---
+
 ## Active Technologies
 - PostgreSQL (existing), new RefreshToken table via Liquibase migration (001-jwt-api-auth)
+- PostgreSQL with Liquibase migrations (001-audit-log)
+- Java 21 + Spring Boot 3.1.5, Spring Data JPA, Hibernate 6, Spring Security (002-audit-log)
+- Hypersistence Utils 3.7.3 for JSONB support (002-audit-log)
 
 ## Recent Changes
+- 002-audit-log: Added comprehensive admin audit logging for Todo and Invoice entities
 - 001-jwt-api-auth: Added Java 21

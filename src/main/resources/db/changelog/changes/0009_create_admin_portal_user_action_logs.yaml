@@ -1,0 +1,91 @@
+databaseChangeLog:
+  - changeSet:
+      id: 1770825713921-1
+      author: taiker (generated)
+      changes:
+        - createTable:
+            columns:
+              - column:
+                  constraints:
+                    nullable: false
+                    primaryKey: true
+                    primaryKeyName: admin_portal_user_action_logsPK
+                  name: id
+                  type: UUID
+              - column:
+                  name: changes
+                  type: JSONB
+              - column:
+                  constraints:
+                    nullable: false
+                  name: created_at
+                  type: TIMESTAMP(6) WITHOUT TIME ZONE
+              - column:
+                  name: created_by
+                  type: VARCHAR(100)
+              - column:
+                  constraints:
+                    nullable: false
+                  name: entity_id
+                  type: BIGINT
+              - column:
+                  constraints:
+                    nullable: false
+                  name: entity_type
+                  type: VARCHAR(50)
+              - column:
+                  constraints:
+                    nullable: false
+                  name: operation
+                  type: VARCHAR(10)
+              - column:
+                  name: request_id
+                  type: UUID
+            tableName: admin_portal_user_action_logs
+  - changeSet:
+      id: 1770825713921-6
+      author: taiker (generated)
+      changes:
+        - createIndex:
+            columns:
+              - column:
+                  name: created_at
+            indexName: idx_user_action_logs_created_at
+            tableName: admin_portal_user_action_logs
+  - changeSet:
+      id: 1770825713921-7
+      author: taiker (generated)
+      changes:
+        - createIndex:
+            columns:
+              - column:
+                  name: created_by
+            indexName: idx_user_action_logs_created_by
+            tableName: admin_portal_user_action_logs
+  - changeSet:
+      id: 1770825713921-8
+      author: taiker (generated)
+      changes:
+        - createIndex:
+            columns:
+              - column:
+                  name: entity_type
+            indexName: idx_user_action_logs_entity_type
+            tableName: admin_portal_user_action_logs
+  - changeSet:
+      id: 1770825713921-9
+      author: taiker (generated)
+      changes:
+        - createIndex:
+            columns:
+              - column:
+                  name: request_id
+            indexName: idx_user_action_logs_request_id
+            tableName: admin_portal_user_action_logs
+
+  - changeSet:
+      id: tag-0009
+      author: taiker
+      changes:
+        - tagDatabase:
+            tag: "0009"
