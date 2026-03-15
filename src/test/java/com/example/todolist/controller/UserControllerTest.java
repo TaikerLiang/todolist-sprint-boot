@@ -1,24 +1,36 @@
 package com.example.todolist.controller;
 
+import com.example.todolist.config.SecurityConfig;
 import com.example.todolist.model.Role;
 import com.example.todolist.model.User;
+import com.example.todolist.security.JwtAuthenticationEntryPoint;
+import com.example.todolist.security.JwtAuthenticationFilter;
+import com.example.todolist.service.JwtService;
 import com.example.todolist.service.UserService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import tech.ailef.snapadmin.external.SnapAdminAutoConfiguration;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
+
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletRequest;
+import jakarta.servlet.ServletResponse;
 
 import java.util.List;
 
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -28,6 +40,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
     controllers = UserController.class,
     excludeAutoConfiguration = { SnapAdminAutoConfiguration.class }
 )
+@Import(SecurityConfig.class)
 class UserControllerTest {
 
     @Autowired
@@ -36,10 +49,33 @@ class UserControllerTest {
     @MockBean
     private UserService userService;
 
+    @MockBean
+    private JwtAuthenticationFilter jwtAuthenticationFilter;
+
+    @MockBean
+    private JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
+
+    @MockBean
+    private JwtService jwtService;
+
     @Autowired
     private ObjectMapper objectMapper;
 
+    @BeforeEach
+    void setUpFilter() throws Exception {
+        // The mock JwtAuthenticationFilter must forward requests through the chain;
+        // without this, the filter swallows every request and returns blank 200.
+        doAnswer(invocation -> {
+            ServletRequest req = invocation.getArgument(0);
+            ServletResponse res = invocation.getArgument(1);
+            FilterChain chain = invocation.getArgument(2);
+            chain.doFilter(req, res);
+            return null;
+        }).when(jwtAuthenticationFilter).doFilter(any(), any(), any());
+    }
+
     @Test
+    @WithMockUser
     void getAllUsers_shouldReturnUserList() throws Exception {
         // Arrange
         User user1 = new User("alice", Role.ADMIN);
@@ -56,6 +92,7 @@ class UserControllerTest {
     }
 
     @Test
+    @WithMockUser
     void getUserById_shouldReturnUser() throws Exception {
         // Arrange
         Long userId = 1L;
@@ -73,6 +110,7 @@ class UserControllerTest {
     }
 
     @Test
+    @WithMockUser
     void createUser_shouldReturnCreatedUser() throws Exception {
         // Arrange
         User request = new User("charlie", Role.MANAGER);
@@ -93,6 +131,7 @@ class UserControllerTest {
     }
 
     @Test
+    @WithMockUser
     void updateUser_shouldReturnUpdatedUser() throws Exception {
         // Arrange
         Long userId = 1L;
@@ -113,6 +152,7 @@ class UserControllerTest {
     }
 
     @Test
+    @WithMockUser
     void deleteUser_shouldReturnOk() throws Exception {
         // Arrange
         Long userId = 1L;

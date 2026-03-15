@@ -60,6 +60,14 @@ class JobControllerTest {
             chain.doFilter(req, res);
             return null;
         }).when(jwtAuthenticationFilter).doFilter(any(), any(), any());
+
+        // The mock JwtAuthenticationEntryPoint must actually write a 401 response;
+        // without this, it does nothing and the response stays 200 for unauthenticated requests.
+        doAnswer(invocation -> {
+            jakarta.servlet.http.HttpServletResponse response = invocation.getArgument(1);
+            response.sendError(jakarta.servlet.http.HttpServletResponse.SC_UNAUTHORIZED, "Unauthorized");
+            return null;
+        }).when(jwtAuthenticationEntryPoint).commence(any(), any(), any());
     }
 
     @Test
